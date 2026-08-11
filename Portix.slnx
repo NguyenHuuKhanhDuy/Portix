@@ -1,0 +1,7 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Portix.Client/Portix.Client.csproj" />
+    <Project Path="src/Portix.Server/Portix.Server.csproj" />
+    <Project Path="src/Portix.Shared/Portix.Shared.csproj" />
+  </Folder>
+</Solution>
