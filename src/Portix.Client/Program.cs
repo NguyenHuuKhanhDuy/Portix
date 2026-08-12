@@ -34,10 +34,17 @@ if (Environment.GetEnvironmentVariable("PORTIX_RUN_DAEMON") != "1")
     // case gets a persistent, ready-to-use console instead of --help flashing and closing.
     if (args.Length == 0 && DoubleClickLaunchDetector.IsLikelyDoubleClicked())
     {
+        // AppContext.BaseDirectory is *not* where the exe actually lives for a self-contained
+        // single-file publish — it's .NET's per-run temp self-extraction directory (the bundled
+        // native host/runtime get extracted there to actually execute). Environment.ProcessPath
+        // is the real, running .exe's own path regardless of build mode — the same distinction
+        // DaemonLauncher.GetSelfRelaunchCommand() already relies on for the same reason.
+        var exeDirectory = Path.GetDirectoryName(Environment.ProcessPath) ?? AppContext.BaseDirectory;
+
         Process.Start(new ProcessStartInfo("cmd.exe")
         {
             UseShellExecute = true,
-            WorkingDirectory = AppContext.BaseDirectory,
+            WorkingDirectory = exeDirectory,
             Arguments = "/K \"echo Portix CLI - type: portix http ^<port^>   (or portix --help for all commands)\"",
         });
         return 0;
