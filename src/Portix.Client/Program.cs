@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net;
 using System.Net.Http;
 using System.Net.Security;
@@ -5,6 +6,7 @@ using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.SignalR;
 using Portix.Client.Api;
+using Portix.Client.Cli;
 using Portix.Client.Cli.Commands;
 using Portix.Client.Inspector;
 using Portix.Client.Tunneling;
@@ -23,6 +25,22 @@ AppContext.SetSwitch("System.Net.Http.SocketsHttpHandler.Http2UnencryptedSupport
 // for those cases — none of it reaches ASP.NET Core's configuration binding below.
 if (Environment.GetEnvironmentVariable("PORTIX_RUN_DAEMON") != "1")
 {
+    // Double-clicking portix.exe from Explorer is indistinguishable from typing bare `portix`
+    // into an existing shell by args alone (args.Length == 0 either way) — but Explorer creates
+    // a brand-new console owned solely by this process, whereas typing it into cmd/PowerShell/
+    // Windows Terminal runs it inside a console that shell is also attached to. Only the former
+    // case gets a persistent, ready-to-use console instead of --help flashing and closing.
+    if (args.Length == 0 && DoubleClickLaunchDetector.IsLikelyDoubleClicked())
+    {
+        Process.Start(new ProcessStartInfo("cmd.exe")
+        {
+            UseShellExecute = true,
+            WorkingDirectory = AppContext.BaseDirectory,
+            Arguments = "/K \"echo Portix CLI - type: portix http ^<port^>   (or portix --help for all commands)\"",
+        });
+        return 0;
+    }
+
     var cli = new CommandApp();
     cli.Configure(config =>
     {
