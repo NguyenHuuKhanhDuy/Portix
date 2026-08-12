@@ -74,7 +74,7 @@ public sealed class TunnelManager
         return _channel ?? throw new InvalidOperationException("Not connected to the tunnel server yet.");
     }
 
-    public async Task<TunnelInfo> OpenAsync(int localPort, string? desiredSubdomain, CancellationToken ct)
+    public async Task<TunnelInfo> OpenAsync(int localPort, string? desiredSubdomain, string scheme, CancellationToken ct)
     {
         var channel = await WaitForChannelAsync(ct).ConfigureAwait(false);
 
@@ -84,6 +84,7 @@ public sealed class TunnelManager
         {
             Id = result.TunnelId,
             LocalPort = localPort,
+            Scheme = scheme,
             DesiredSubdomain = desiredSubdomain,
             Subdomain = result.Subdomain,
             PublicUrl = result.PublicUrl,

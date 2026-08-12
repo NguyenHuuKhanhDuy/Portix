@@ -2,12 +2,12 @@ using Portix.Client.Tunneling;
 
 namespace Portix.Client.Api;
 
-public sealed record OpenTunnelRequest(int LocalPort, string? Subdomain);
+public sealed record OpenTunnelRequest(int LocalPort, string? Subdomain, string? Scheme = null);
 
-public sealed record TunnelDto(string Id, int LocalPort, string? Subdomain, string? PublicUrl, string Status, string? LastError, bool CaptureBodiesEnabled)
+public sealed record TunnelDto(string Id, int LocalPort, string Scheme, string? Subdomain, string? PublicUrl, string Status, string? LastError, bool CaptureBodiesEnabled)
 {
     public static TunnelDto From(TunnelInfo tunnel) => new(
-        tunnel.Id, tunnel.LocalPort, tunnel.Subdomain, tunnel.PublicUrl, tunnel.Status.ToString(), tunnel.LastError, tunnel.CaptureBodiesEnabled);
+        tunnel.Id, tunnel.LocalPort, tunnel.Scheme, tunnel.Subdomain, tunnel.PublicUrl, tunnel.Status.ToString(), tunnel.LastError, tunnel.CaptureBodiesEnabled);
 }
 
 public static class TunnelEndpoints
@@ -21,7 +21,8 @@ public static class TunnelEndpoints
         {
             try
             {
-                var tunnel = await manager.OpenAsync(body.LocalPort, body.Subdomain, ct).ConfigureAwait(false);
+                var scheme = string.IsNullOrWhiteSpace(body.Scheme) ? "http" : body.Scheme;
+                var tunnel = await manager.OpenAsync(body.LocalPort, body.Subdomain, scheme, ct).ConfigureAwait(false);
                 return Results.Ok(TunnelDto.From(tunnel));
             }
             catch (TunnelRegistrationRejectedException ex)

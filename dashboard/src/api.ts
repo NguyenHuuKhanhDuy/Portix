@@ -11,11 +11,11 @@ async function json<T>(response: Response): Promise<T> {
 export const api = {
   listTunnels: (): Promise<Tunnel[]> => fetch('/api/tunnels').then((r) => json<Tunnel[]>(r)),
 
-  openTunnel: (localPort: number, subdomain?: string): Promise<Tunnel> =>
+  openTunnel: (localPort: number, subdomain?: string, scheme: 'http' | 'https' = 'http'): Promise<Tunnel> =>
     fetch('/api/tunnels', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ localPort, subdomain: subdomain || null }),
+      body: JSON.stringify({ localPort, subdomain: subdomain || null, scheme }),
     }).then((r) => json<Tunnel>(r)),
 
   closeTunnel: (id: string): Promise<void> =>
@@ -26,8 +26,10 @@ export const api = {
   setCapture: (id: string, enabled: boolean): Promise<Tunnel> =>
     fetch(`/api/tunnels/${id}/capture?enabled=${enabled}`, { method: 'POST' }).then((r) => json<Tunnel>(r)),
 
-  listRequests: (tunnelId: string): Promise<CapturedRequestSummary[]> =>
-    fetch(`/api/tunnels/${tunnelId}/requests`).then((r) => json<CapturedRequestSummary[]>(r)),
+  listRequests: (tunnelId: string, limit?: number): Promise<CapturedRequestSummary[]> =>
+    fetch(`/api/tunnels/${tunnelId}/requests${limit ? `?limit=${limit}` : ''}`).then((r) =>
+      json<CapturedRequestSummary[]>(r),
+    ),
 
   getRequest: (tunnelId: string, requestId: string): Promise<CapturedRequestDetail> =>
     fetch(`/api/tunnels/${tunnelId}/requests/${requestId}`).then((r) => json<CapturedRequestDetail>(r)),

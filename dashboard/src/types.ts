@@ -1,6 +1,7 @@
 export interface Tunnel {
   id: string
   localPort: number
+  scheme: 'http' | 'https'
   subdomain: string | null
   publicUrl: string | null
   status: 'Connecting' | 'Online' | 'Error' | 'Closed'

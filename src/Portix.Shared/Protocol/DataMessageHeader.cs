@@ -15,4 +15,14 @@ public sealed class DataMessageHeader
 
     /// <summary>Request legs only: the public caller's source IP, for the traffic inspector.</summary>
     public string? SourceIp { get; set; }
+
+    /// <summary>
+    /// Response legs only: set by the client instead of a real StatusCode/body when it could not
+    /// reach the local app at all (e.g. connection refused, response timeout). A short machine
+    /// code such as "local_connection_failed" or "local_response_timeout".
+    /// </summary>
+    public string? GatewayErrorReason { get; set; }
+
+    /// <summary>Response legs only: human-readable detail accompanying <see cref="GatewayErrorReason"/>.</summary>
+    public string? GatewayErrorDetail { get; set; }
 }

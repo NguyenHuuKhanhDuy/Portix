@@ -1,7 +1,9 @@
 using System.Diagnostics;
 using System.Net;
 using System.Net.Http;
+using System.Net.Sockets;
 using Portix.Client.Inspector;
+using Portix.Shared.Logging;
 using Portix.Shared.Protocol;
 
 namespace Portix.Client.Tunneling;
@@ -69,29 +71,50 @@ public sealed class RequestForwarder
             Content = duplex,
         };
 
+        // Reachable from the catch-all below, which needs them to report a failure that happens
+        // anywhere in the sequence — not just around the local-connect call.
+        Stream? requestStream = null;
+        string? method = null;
+        string? path = null;
+        var responseSent = false;
+
         try
         {
             var responseTask = serverClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
-            var requestStream = await duplex.WaitForWriteStreamAsync(responseTask, ct).ConfigureAwait(false);
+            requestStream = await duplex.WaitForWriteStreamAsync(responseTask, ct).ConfigureAwait(false);
 
             using var response = await responseTask.ConfigureAwait(false);
             response.EnsureSuccessStatusCode();
             var serverStream = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
 
             var requestHeader = await DataMessageCodec.ReadHeaderAsync(serverStream, ct).ConfigureAwait(false);
+            method = requestHeader.Method ?? "GET";
+            path = requestHeader.Path ?? "/";
 
-            var requestTee = captureBodies ? new CappedTeeStream(serverStream, BodyPreviewCapBytes) : null;
+            var isUpgrade = UpgradeRequestDetector.IsUpgrade(
+                GetHeaderValues(requestHeader.Headers, "Connection"),
+                GetHeaderValues(requestHeader.Headers, "Upgrade"));
 
-            using var localRequest = new HttpRequestMessage(
-                new HttpMethod(requestHeader.Method ?? "GET"),
-                new Uri($"http://localhost:{tunnel.LocalPort}{requestHeader.Path}"))
-            {
-                Content = new StreamContent((Stream?)requestTee ?? serverStream),
-            };
+            // Upgraded (e.g. WebSocket) traffic is a raw byte pump, not a captured request/response — no tee.
+            var requestTee = !isUpgrade && captureBodies ? new CappedTeeStream(serverStream, BodyPreviewCapBytes) : null;
+
+            var localUri = new Uri($"{tunnel.Scheme}://localhost:{tunnel.LocalPort}{requestHeader.Path}");
+
+            using var localRequest = isUpgrade
+                ? new HttpRequestMessage(new HttpMethod(requestHeader.Method ?? "GET"), localUri)
+                {
+                    // Upgrade is an HTTP/1.1 mechanism; a WebSocket handshake has no body anyway.
+                    Version = HttpVersion.Version11,
+                    VersionPolicy = HttpVersionPolicy.RequestVersionExact,
+                }
+                : new HttpRequestMessage(new HttpMethod(requestHeader.Method ?? "GET"), localUri)
+                {
+                    Content = new StreamContent((Stream?)requestTee ?? serverStream),
+                };
 
             foreach (var (name, values) in requestHeader.Headers)
             {
-                if (ContentHeaderNames.Contains(name))
+                if (localRequest.Content is not null && ContentHeaderNames.Contains(name))
                 {
                     localRequest.Content.Headers.TryAddWithoutValidation(name, values);
                 }
@@ -101,21 +124,88 @@ public sealed class RequestForwarder
                 }
             }
 
-            using var localResponse = await SendWithIdleTimeoutAsync(localRequest, tunnel.LocalPort, ct).ConfigureAwait(false);
-            var localResponseStream = await localResponse.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
-            var responseTee = captureBodies ? new CappedTeeStream(localResponseStream, BodyPreviewCapBytes) : null;
-
-            var responseHeaders = MergeResponseHeaders(localResponse);
-            var responseHeader = new DataMessageHeader
+            HttpResponseMessage localResponse;
+            try
             {
-                StatusCode = (int)localResponse.StatusCode,
-                Headers = responseHeaders,
-            };
+                localResponse = await SendWithIdleTimeoutAsync(localRequest, tunnel.LocalPort, ct).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is HttpRequestException or SocketException or TimeoutException)
+            {
+                var reason = ex is TimeoutException ? "local_response_timeout" : "local_connection_failed";
 
-            await DataMessageCodec.WriteHeaderAsync(requestStream, responseHeader, ct).ConfigureAwait(false);
-            await CopyWithIdleTimeoutAsync((Stream?)responseTee ?? localResponseStream, requestStream, ct).ConfigureAwait(false);
+                await DataMessageCodec.WriteHeaderAsync(requestStream, new DataMessageHeader
+                {
+                    StatusCode = 502,
+                    GatewayErrorReason = reason,
+                    GatewayErrorDetail = ex.Message,
+                }, ct).ConfigureAwait(false);
+                responseSent = true;
 
-            Capture(tunnelId, requestHeader, requestTee, (int)localResponse.StatusCode, responseHeaders, responseTee, timestamp, stopwatch.Elapsed.TotalMilliseconds);
+                RequestConsoleLog.WriteGatewayError(method, path, ex.Message);
+                return;
+            }
+
+            if (isUpgrade && localResponse.StatusCode == HttpStatusCode.SwitchingProtocols)
+            {
+                using (localResponse)
+                {
+                    await DataMessageCodec.WriteHeaderAsync(requestStream, new DataMessageHeader
+                    {
+                        StatusCode = (int)HttpStatusCode.SwitchingProtocols,
+                        Headers = MergeResponseHeaders(localResponse, preserveConnectionUpgrade: true),
+                    }, ct).ConfigureAwait(false);
+                    responseSent = true;
+
+                    var localDuplexStream = await localResponse.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+                    RequestConsoleLog.Write(method, path, (int)HttpStatusCode.SwitchingProtocols, stopwatch.Elapsed.TotalMilliseconds);
+
+                    await DuplexPump.RunAsync(serverStream, requestStream, localDuplexStream, localDuplexStream, ct).ConfigureAwait(false);
+                }
+
+                return;
+            }
+
+            using (localResponse)
+            {
+                var localResponseStream = await localResponse.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+                var responseTee = captureBodies ? new CappedTeeStream(localResponseStream, BodyPreviewCapBytes) : null;
+
+                var responseHeaders = MergeResponseHeaders(localResponse);
+                var responseHeader = new DataMessageHeader
+                {
+                    StatusCode = (int)localResponse.StatusCode,
+                    Headers = responseHeaders,
+                };
+
+                await DataMessageCodec.WriteHeaderAsync(requestStream, responseHeader, ct).ConfigureAwait(false);
+                responseSent = true;
+                await CopyWithIdleTimeoutAsync((Stream?)responseTee ?? localResponseStream, requestStream, ct).ConfigureAwait(false);
+
+                RequestConsoleLog.Write(method, path, (int)localResponse.StatusCode, stopwatch.Elapsed.TotalMilliseconds);
+                Capture(tunnelId, requestHeader, requestTee, (int)localResponse.StatusCode, responseHeaders, responseTee, timestamp, stopwatch.Elapsed.TotalMilliseconds);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Unexpected error forwarding stream {StreamId} for tunnel {TunnelId}", streamId, tunnelId);
+            RequestConsoleLog.WriteGatewayError(method ?? "?", path ?? "?", ex.Message);
+
+            if (!responseSent && requestStream is not null)
+            {
+                try
+                {
+                    await DataMessageCodec.WriteHeaderAsync(requestStream, new DataMessageHeader
+                    {
+                        StatusCode = 502,
+                        GatewayErrorReason = "unexpected_error",
+                        GatewayErrorDetail = ex.Message,
+                    }, ct).ConfigureAwait(false);
+                }
+                catch
+                {
+                    // Best effort — the stream may already be unusable; the failure above is already logged.
+                }
+            }
         }
         finally
         {
@@ -152,6 +242,19 @@ public sealed class RequestForwarder
         });
     }
 
+    private static List<string>? GetHeaderValues(Dictionary<string, List<string>> headers, string name)
+    {
+        foreach (var (key, values) in headers)
+        {
+            if (key.Equals(name, StringComparison.OrdinalIgnoreCase))
+            {
+                return values;
+            }
+        }
+
+        return null;
+    }
+
     private static Dictionary<string, string> Flatten(Dictionary<string, List<string>> headers)
     {
         var result = new Dictionary<string, string>();
@@ -177,12 +280,16 @@ public sealed class RequestForwarder
         }
     }
 
-    private static Dictionary<string, List<string>> MergeResponseHeaders(HttpResponseMessage response)
+    private static Dictionary<string, List<string>> MergeResponseHeaders(HttpResponseMessage response, bool preserveConnectionUpgrade = false)
     {
         var result = new Dictionary<string, List<string>>();
         foreach (var header in response.Headers)
         {
-            if (!HopByHopHeaders.Names.Contains(header.Key))
+            var isConnectionOrUpgrade = preserveConnectionUpgrade
+                && (header.Key.Equals("Connection", StringComparison.OrdinalIgnoreCase)
+                    || header.Key.Equals("Upgrade", StringComparison.OrdinalIgnoreCase));
+
+            if (!HopByHopHeaders.Names.Contains(header.Key) || isConnectionOrUpgrade)
             {
                 result[header.Key] = header.Value.ToList();
             }

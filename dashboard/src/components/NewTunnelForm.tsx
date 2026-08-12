@@ -3,6 +3,7 @@ import { api } from '../api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
 
 interface Props {
   onOpened: () => void
@@ -11,6 +12,7 @@ interface Props {
 export function NewTunnelForm({ onOpened }: Props) {
   const [port, setPort] = useState('')
   const [subdomain, setSubdomain] = useState('')
+  const [useHttps, setUseHttps] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -25,7 +27,7 @@ export function NewTunnelForm({ onOpened }: Props) {
     setBusy(true)
     setError(null)
     try {
-      await api.openTunnel(localPort, subdomain.trim() || undefined)
+      await api.openTunnel(localPort, subdomain.trim() || undefined, useHttps ? 'https' : 'http')
       setPort('')
       setSubdomain('')
       onOpened()
@@ -63,6 +65,12 @@ export function NewTunnelForm({ onOpened }: Props) {
           onChange={(e) => setSubdomain(e.target.value)}
           disabled={busy}
         />
+      </div>
+      <div className="flex items-center gap-2">
+        <Switch id="use-https" checked={useHttps} onCheckedChange={setUseHttps} disabled={busy} />
+        <Label htmlFor="use-https" className="text-xs text-muted-foreground">
+          Local app uses HTTPS
+        </Label>
       </div>
       <Button type="submit" disabled={busy}>
         {busy ? 'Opening...' : 'New Tunnel'}

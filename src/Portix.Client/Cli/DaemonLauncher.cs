@@ -77,6 +77,7 @@ public static class DaemonLauncher
 
         startInfo.Environment["Portix__LocalApiPort"] = "0";
         startInfo.Environment["PORTIX_PORT_ANNOUNCE_FILE"] = announceFilePath;
+        startInfo.Environment["PORTIX_RUN_DAEMON"] = "1";
 
         var process = Process.Start(startInfo)
             ?? throw new InvalidOperationException("Failed to start an isolated daemon process.");
@@ -157,6 +158,10 @@ public static class DaemonLauncher
         {
             startInfo.Arguments = arguments;
         }
+
+        // The only thing that makes this relaunch start the daemon instead of going back through
+        // the CLI framework (see Program.cs) — never set for anything a human could type directly.
+        startInfo.Environment["PORTIX_RUN_DAEMON"] = "1";
 
         return Process.Start(startInfo);
     }

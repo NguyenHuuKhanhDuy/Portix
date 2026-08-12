@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http;
+using System.Net.Security;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.SignalR;
@@ -13,28 +14,32 @@ using Spectre.Console.Cli;
 // to negotiate HTTP/2 over plaintext unless this switch is set before first use.
 AppContext.SetSwitch("System.Net.Http.SocketsHttpHandler.Http2UnencryptedSupport", true);
 
-// Dual-mode entry point: a recognized CLI subcommand runs this binary as the thin client, which
-// talks to a running daemon (self-relaunching this same binary with no arguments if none is
-// reachable — see DaemonLauncher). Anything else — no arguments, or the self-relaunch above —
-// falls through and starts this binary as the daemon itself. The check happens before
-// WebApplication.CreateBuilder so the CLI path never touches ASP.NET Core's configuration
-// binding, which expects `--key value`-shaped argv, not positional subcommands.
-var cliSubcommands = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "http", "ls", "rm", "login", "logout" };
-if (args.Length > 0 && cliSubcommands.Contains(args[0]))
+// Dual-mode entry point: a human-typed invocation always runs this binary as the thin CLI
+// client, which talks to a running daemon (self-relaunching this same binary if none is
+// reachable — see DaemonLauncher). Only that internal relaunch — never anything a human could
+// type — sets PORTIX_RUN_DAEMON, which is what actually starts this binary as the daemon itself.
+// Everything else, including no arguments, -h/--help, or an invalid subcommand, goes through the
+// CLI framework, so Spectre.Console.Cli's own usage/help/error handling is what a human ever sees
+// for those cases — none of it reaches ASP.NET Core's configuration binding below.
+if (Environment.GetEnvironmentVariable("PORTIX_RUN_DAEMON") != "1")
 {
     var cli = new CommandApp();
     cli.Configure(config =>
     {
         config.SetApplicationName("portix");
         config.SetApplicationVersion("0.1.0");
-        config.AddCommand<HttpCommand>("http");
-        config.AddCommand<LsCommand>("ls");
-        config.AddCommand<RmCommand>("rm");
-        config.AddCommand<LoginCommand>("login");
-        config.AddCommand<LogoutCommand>("logout");
+        config.AddCommand<HttpCommand>("http").WithDescription("Expose a local HTTP port through a public tunnel");
+        config.AddCommand<HttpsCommand>("https").WithDescription("Expose a local HTTPS port through a public tunnel");
+        config.AddCommand<LsCommand>("ls").WithDescription("List currently open tunnels");
+        config.AddCommand<RmCommand>("rm").WithDescription("Close a tunnel by id");
+        config.AddCommand<LoginCommand>("login").WithDescription("Save a personal API token for this machine");
+        config.AddCommand<LogoutCommand>("logout").WithDescription("Remove the saved API token");
     });
 
-    return await cli.RunAsync(args);
+    // With no default command configured, Spectre.Console.Cli's own behavior for zero
+    // arguments isn't guaranteed to show help — make that case explicit rather than assume it.
+    var effectiveArgs = args.Length == 0 ? new[] { "--help" } : args;
+    return await cli.RunAsync(effectiveArgs);
 }
 
 var builder = WebApplication.CreateBuilder(args);
@@ -55,7 +60,26 @@ builder.WebHost.ConfigureKestrel(options =>
 
 builder.Services.AddSignalR();
 
-builder.Services.AddKeyedSingleton<HttpClient>("local", (_, _) => new HttpClient { Timeout = Timeout.InfiniteTimeSpan });
+// AllowAutoRedirect must stay false: a 3xx from the local app has to reach the public caller
+// unmodified so their own browser follows it against the public tunnel domain, not have this
+// HttpClient resolve it internally against localhost (which also breaks outright, since the
+// redirect follow needs to resend the request body and that body is a single-read network stream).
+//
+// Certificate validation is skipped unconditionally (not per-request) because this specific
+// keyed HttpClient has exactly one purpose in this codebase: reaching a tunnel's own
+// "localhost:{port}" target (RequestForwarder, and the replay endpoint) — it never dials
+// anywhere else. That's exactly the case (a developer's own self-signed/dev-mode HTTPS
+// certificate) this needs to tolerate; it is not a general "don't validate certs" setting.
+builder.Services.AddKeyedSingleton<HttpClient>("local", (_, _) =>
+    new HttpClient(new SocketsHttpHandler
+    {
+        AllowAutoRedirect = false,
+        SslOptions = new SslClientAuthenticationOptions
+        {
+            RemoteCertificateValidationCallback = (_, _, _, _) => true,
+        },
+    })
+    { Timeout = Timeout.InfiniteTimeSpan });
 builder.Services.AddSingleton<TunnelManager>();
 builder.Services.AddSingleton<RequestStore>();
 builder.Services.AddSingleton<RequestForwarder>(sp => new RequestForwarder(

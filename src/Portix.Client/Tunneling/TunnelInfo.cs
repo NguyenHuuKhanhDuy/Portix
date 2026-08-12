@@ -14,6 +14,9 @@ public sealed class TunnelInfo
     public required string Id { get; set; }
     public required int LocalPort { get; init; }
 
+    /// <summary>Scheme used to reach the local app: "http" or "https". Defaults to "http" for backward compatibility.</summary>
+    public string Scheme { get; init; } = "http";
+
     /// <summary>Subdomain the user asked for, if any — re-requested on reconnect; null means "assign randomly."</summary>
     public string? DesiredSubdomain { get; init; }
 

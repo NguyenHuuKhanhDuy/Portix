@@ -116,7 +116,13 @@ public sealed class SessionRegistry
     public bool TryGetTunnel(string subdomain, out Tunnel tunnel) =>
         _tunnelsBySubdomain.TryGetValue(subdomain, out tunnel!);
 
+    public Tunnel TryGetTunnel() =>
+        _tunnelsBySubdomain.FirstOrDefault().Value;
+
     public IReadOnlyCollection<Session> ActiveSessions => _sessions.Values.ToArray();
+
+    public bool TryGetSession(string sessionId, out Session session) =>
+        _sessions.TryGetValue(sessionId, out session!);
 
     /// <summary>Removes the session and every tunnel it owns, failing any in-flight forwarded requests so callers don't hang.</summary>
     public void Teardown(Session session, Exception reason)

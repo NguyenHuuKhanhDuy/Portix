@@ -57,7 +57,7 @@ public static class RequestEndpoints
                 return Results.NotFound(new { error = "Captured request not found." });
             }
 
-            using var request = new HttpRequestMessage(new HttpMethod(capture.Method), $"http://localhost:{tunnel.LocalPort}{capture.Path}");
+            using var request = new HttpRequestMessage(new HttpMethod(capture.Method), $"{tunnel.Scheme}://localhost:{tunnel.LocalPort}{capture.Path}");
             if (capture.RequestBodyPreview is { Length: > 0 } body)
             {
                 request.Content = new ByteArrayContent(body);
