@@ -33,19 +33,17 @@ public sealed class PublicForwardingMiddleware
 
         var subdomain = context.Request.Host.Host.Split('.')[0];
 
-        // if (!_registry.TryGetTunnel(subdomain, out var tunnel))
-        // {
-        //     await WriteGatewayErrorAsync(
-        //         context,
-        //         StatusCodes.Status502BadGateway,
-        //         "Tunnel not found",
-        //         $"No local server is currently exposed at '{subdomain}'.",
-        //         detail: null).ConfigureAwait(false);
-        //     return;
-        // }
-
-        var tunnel = _registry.TryGetTunnel();
-
+        if (!_registry.TryGetTunnel(subdomain, out var tunnel))
+        {
+            await WriteGatewayErrorAsync(
+                context,
+                StatusCodes.Status502BadGateway,
+                "Tunnel not found",
+                $"No local server is currently exposed at '{subdomain}'.",
+                detail: null).ConfigureAwait(false);
+            return;
+        }
+        
         var session = tunnel.Session;
         var streamId = Guid.NewGuid().ToString("N");
         tunnel.PendingStreamIds.TryAdd(streamId, 0);
@@ -245,9 +243,12 @@ public sealed class PublicForwardingMiddleware
     private static async Task CopyWithIdleTimeoutAsync(Stream source, Stream destination, CancellationToken ct)
     {
         var buffer = new byte[16 * 1024];
+        // One reused linked source for the whole copy, not one per chunk: CancelAfter reschedules
+        // the same pending deadline on each iteration instead of allocating a new source + timer
+        // per 16 KB read, which otherwise happens hundreds of times for a large body.
+        using var idleCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         while (true)
         {
-            using var idleCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             idleCts.CancelAfter(IdleTimeout);
 
             int read;

@@ -309,9 +309,12 @@ public sealed class RequestForwarder
     private static async Task CopyWithIdleTimeoutAsync(Stream source, Stream destination, CancellationToken ct)
     {
         var buffer = new byte[16 * 1024];
+        // One reused linked source for the whole copy, not one per chunk: CancelAfter reschedules
+        // the same pending deadline on each iteration instead of allocating a new source + timer
+        // per 16 KB read, which otherwise happens hundreds of times for a large body.
+        using var idleCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         while (true)
         {
-            using var idleCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             idleCts.CancelAfter(IdleTimeout);
 
             int read;

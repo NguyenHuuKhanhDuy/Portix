@@ -19,6 +19,12 @@ var adminEnabled = !string.IsNullOrWhiteSpace(adminToken);
 
 builder.WebHost.ConfigureKestrel(options =>
 {
+    // The default (100) is easily reached by this server's own multiplexing (control channel +
+    // every /data/{streamId} leg share one connection) and by an ordinary browser's own parallel
+    // asset requests against the public listener — raised so normal concurrency doesn't queue for
+    // a stream slot, while still bounding a single connection's worst-case resource use.
+    options.Limits.Http2.MaxStreamsPerConnection = 1000;
+
     // Control/data channel: client dials HTTP/2 with prior knowledge (no TLS, no ALPN), so only Http2 is offered here.
     // NOTE: an earlier attempt (add-swagger-docs) widened this to Http1AndHttp2 so a browser could
     // reach /admin and Swagger UI here too — that broke the control channel outright (Kestrel can't
