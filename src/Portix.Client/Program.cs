@@ -2,9 +2,11 @@ using System.Diagnostics;
 using System.Net;
 using System.Net.Http;
 using System.Net.Security;
+using System.Reflection;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.Extensions.FileProviders;
 using Portix.Client.Api;
 using Portix.Client.Cli;
 using Portix.Client.Cli.Commands;
@@ -143,8 +145,14 @@ app.MapTunnelEndpoints();
 app.MapRequestEndpoints();
 app.MapHub<DashboardHub>("/hubs/dashboard");
 
-app.UseDefaultFiles();
-app.UseStaticFiles();
+// Served from the assembly's embedded wwwroot (see Portix.Client.csproj), not a physical folder —
+// works identically whether this runs as a normal multi-file build or a single-file publish with
+// nothing else alongside it. IncludeAllContentForSelfExtract alone does not make ASP.NET Core's
+// WebRootPath resolution find self-extracted content, so a physical-file-based UseStaticFiles()
+// would silently fail to find wwwroot in the single-file-alone case.
+var embeddedWebRoot = new ManifestEmbeddedFileProvider(Assembly.GetExecutingAssembly(), "wwwroot");
+app.UseDefaultFiles(new DefaultFilesOptions { FileProvider = embeddedWebRoot });
+app.UseStaticFiles(new StaticFileOptions { FileProvider = embeddedWebRoot });
 
 app.Run();
 return 0;

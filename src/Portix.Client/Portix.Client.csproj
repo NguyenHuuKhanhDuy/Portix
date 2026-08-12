@@ -5,6 +5,14 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AssemblyName>portix</AssemblyName>
+    <!-- Only takes effect for an actual -p:PublishSingleFile=true publish; a no-op for ordinary
+         dotnet build/run. Makes that kind of publish bundle appsettings.json into the single exe
+         instead of leaving it as a loose file alongside it. wwwroot is handled separately below
+         (as an EmbeddedResource) — IncludeAllContentForSelfExtract alone does not make ASP.NET
+         Core's own WebRootPath resolution find self-extracted content; confirmed by direct testing,
+         not assumed. -->
+    <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
+    <GenerateEmbeddedFilesManifest>true</GenerateEmbeddedFilesManifest>
   </PropertyGroup>
 
   <ItemGroup>
@@ -13,7 +21,16 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="8.0.10" />
+    <PackageReference Include="Microsoft.Extensions.FileProviders.Embedded" Version="8.0.10" />
     <PackageReference Include="Spectre.Console.Cli" Version="0.55.0" />
+  </ItemGroup>
+
+  <!-- Compiled into the assembly instead of served from a physical wwwroot folder, so the
+       dashboard's static assets work identically whether this runs as a normal multi-file build
+       or a single-file publish with nothing else alongside it (see Program.cs's UseStaticFiles). -->
+  <ItemGroup>
+    <Content Remove="wwwroot\**" />
+    <EmbeddedResource Include="wwwroot\**" />
   </ItemGroup>
 
 </Project>
