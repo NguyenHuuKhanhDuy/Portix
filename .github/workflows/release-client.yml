@@ -8,10 +8,6 @@ on:
         description: "Version to publish, without a leading 'v' (e.g. 1.2.0)"
         required: true
         type: string
-      server-url:
-        description: "Public Portix.Server URL to bake in as the default (e.g. https://tunnel.example.com:5100) — never committed, only used for this build"
-        required: true
-        type: string
 
 permissions:
   contents: write
@@ -41,15 +37,6 @@ jobs:
           cd dashboard
           npm ci
           npm run build
-
-      - name: Set the release server URL
-        # appsettings.json ships with a localhost default for local development; only this
-        # checked-out copy on the runner gets patched to the real server URL — never committed.
-        run: |
-          $path = "src/Portix.Client/appsettings.json"
-          $json = Get-Content -Path $path -Raw | ConvertFrom-Json
-          $json.Portix.ServerUrl = "${{ inputs.server-url }}"
-          $json | ConvertTo-Json -Depth 10 | Set-Content -Path $path
 
       - name: Publish all platforms
         run: ./scripts/publish-portix-client.ps1 -Version "${{ inputs.version }}"

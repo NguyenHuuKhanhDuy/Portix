@@ -71,6 +71,12 @@ if (Environment.GetEnvironmentVariable("PORTIX_RUN_DAEMON") != "1")
     return await cli.RunAsync(effectiveArgs);
 }
 
+// Portix:ServerUrl has exactly one real source: the persisted config store written by
+// `portix login --server <url>` (see ClientConfigStore below). It's deliberately absent from
+// appsettings.json — this constant is a pure code-level "don't crash before the user has logged
+// in" placeholder, not a value anyone is meant to edit or rely on.
+const string DefaultServerUrl = "http://localhost:5100";
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Fallback config source: a genuinely standalone single-file exe (no companion appsettings.json
@@ -140,7 +146,7 @@ builder.Services.AddSingleton<TunnelManager>();
 builder.Services.AddSingleton<RequestStore>();
 builder.Services.AddSingleton<RequestForwarder>(sp => new RequestForwarder(
     sp.GetRequiredKeyedService<HttpClient>("local"),
-    new Uri(sp.GetRequiredService<IConfiguration>()["Portix:ServerUrl"] ?? "http://localhost:5100"),
+    new Uri(sp.GetRequiredService<IConfiguration>()["Portix:ServerUrl"] ?? DefaultServerUrl),
     sp.GetRequiredService<TunnelManager>(),
     sp.GetRequiredService<RequestStore>(),
     sp.GetRequiredService<ILogger<RequestForwarder>>()));
@@ -148,10 +154,10 @@ builder.Services.AddHostedService<ControlChannelBackgroundService>();
 
 var app = builder.Build();
 
-var effectiveServerUrl = app.Configuration["Portix:ServerUrl"] ?? "http://localhost:5100";
+var effectiveServerUrl = app.Configuration["Portix:ServerUrl"] ?? DefaultServerUrl;
 var serverUrlSource = File.Exists(Portix.Client.Cli.ClientConfigStore.ConfigPath)
     ? $"persisted config store ({Portix.Client.Cli.ClientConfigStore.ConfigPath})"
-    : "appsettings.json";
+    : "built-in default — run 'portix login <token> --server <url>' to configure a real one";
 app.Logger.LogInformation("Using server URL {ServerUrl} (from {Source})", effectiveServerUrl, serverUrlSource);
 
 // An isolated daemon (see DaemonLauncher.StartIsolatedAsync) binds an OS-assigned free port and
