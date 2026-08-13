@@ -1,0 +1,76 @@
+@import "tailwindcss";
+@import "@fontsource-variable/geist";
+
+/* Dark mode follows the OS preference only (no manual toggle), same as the dashboard app. */
+
+@theme inline {
+    --font-sans: 'Geist Variable', sans-serif;
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --color-card: var(--card);
+    --color-card-foreground: var(--card-foreground);
+    --color-border: var(--border);
+    --color-muted: var(--muted);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-primary: var(--primary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-accent: var(--accent);
+    --color-accent-foreground: var(--accent-foreground);
+}
+
+:root {
+    --background: oklch(1 0 0);
+    --foreground: oklch(0.2 0.02 292);
+    --card: oklch(0.98 0.01 292);
+    --card-foreground: oklch(0.2 0.02 292);
+    --border: oklch(0.9 0.015 292);
+    --muted: oklch(0.96 0.01 292);
+    --muted-foreground: oklch(0.5 0.02 292);
+    --primary: oklch(0.53 0.27 296);
+    --primary-foreground: oklch(0.98 0.01 292);
+    --accent: oklch(0.72 0.14 235);
+    --accent-foreground: oklch(0.2 0.02 292);
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --background: oklch(0.16 0.015 292);
+        --foreground: oklch(0.95 0.01 292);
+        --card: oklch(0.2 0.02 292);
+        --card-foreground: oklch(0.95 0.01 292);
+        --border: oklch(0.3 0.02 292);
+        --muted: oklch(0.24 0.02 292);
+        --muted-foreground: oklch(0.68 0.02 292);
+        --primary: oklch(0.68 0.2 296);
+        --primary-foreground: oklch(0.16 0.015 292);
+        --accent: oklch(0.72 0.14 235);
+        --accent-foreground: oklch(0.16 0.015 292);
+    }
+}
+
+body {
+    font-family: var(--font-sans);
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+}
+
+/* Tunnel flow diagram (Architecture section): a single dot travels the full
+   width of the diagram (request), then back (response), on a loop. */
+@keyframes tunnel-flow {
+    0%, 4% { left: 0%; }
+    45%, 55% { left: 100%; }
+    96%, 100% { left: 0%; }
+}
+
+.tunnel-dot {
+    position: absolute;
+    top: 0;
+    left: 0%;
+    transform: translate(-50%, -50%);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .tunnel-dot {
+        animation: tunnel-flow 7s ease-in-out infinite;
+    }
+}
