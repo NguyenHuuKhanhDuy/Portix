@@ -33,4 +33,15 @@
     <EmbeddedResource Include="wwwroot\**" />
   </ItemGroup>
 
+  <!-- Same problem as wwwroot above, same fix: confirmed by direct testing that a standalone
+       single-file exe (nothing else alongside it — exactly how a GitHub Release asset ships)
+       cannot find appsettings.json via IncludeAllContentForSelfExtract/self-extraction, so
+       Program.cs's config ends up empty and silently falls back to hardcoded defaults. Kept as a
+       Content item too (not removed) so `dotnet publish`'s loose copy and local `dotnet run`
+       keep working exactly as before; this just adds a reliable fallback source read from the
+       assembly's own embedded resources. -->
+  <ItemGroup>
+    <EmbeddedResource Include="appsettings.json" />
+  </ItemGroup>
+
 </Project>

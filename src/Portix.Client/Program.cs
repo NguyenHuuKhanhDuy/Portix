@@ -6,6 +6,7 @@ using System.Reflection;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.Extensions.Configuration.Json;
 using Microsoft.Extensions.FileProviders;
 using Portix.Client.Api;
 using Portix.Client.Cli;
@@ -71,6 +72,33 @@ if (Environment.GetEnvironmentVariable("PORTIX_RUN_DAEMON") != "1")
 }
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Fallback config source: a genuinely standalone single-file exe (no companion appsettings.json
+// alongside it — exactly how a GitHub Release asset ships) can't resolve the loose
+// appsettings.json that CreateBuilder just tried to load via self-extraction; confirmed by direct
+// testing that IncludeAllContentForSelfExtract does not make that work (same finding as wwwroot's
+// EmbeddedResource handling in Portix.Client.csproj, and the same fix here: read it back from the
+// assembly's own embedded resources instead). Harmless no-op whenever the loose file WAS found,
+// since both are built from the identical source file.
+//
+// Inserted at index 0 (lowest precedence) rather than appended via AddJsonStream: CreateBuilder
+// already added environment variables and command-line args as later (higher-precedence) sources,
+// and appending here would put this fallback ABOVE them — silently breaking the Portix__<Key>
+// environment-variable override documented in the README. This must sit below everything,
+// including the loose appsettings.json it's a fallback for.
+var embeddedAppSettingsName = Assembly.GetExecutingAssembly().GetManifestResourceNames()
+    .FirstOrDefault(name => name.EndsWith("appsettings.json", StringComparison.Ordinal));
+if (embeddedAppSettingsName is not null)
+{
+    // Not disposed here: the source may read it lazily rather than immediately, and this is a
+    // resource stream over the assembly's own in-memory image (no OS file handle), so there's
+    // nothing meaningful to release early anyway.
+    var embeddedAppSettingsStream = Assembly.GetExecutingAssembly().GetManifestResourceStream(embeddedAppSettingsName);
+    if (embeddedAppSettingsStream is not null)
+    {
+        builder.Configuration.Sources.Insert(0, new JsonStreamConfigurationSource { Stream = embeddedAppSettingsStream });
+    }
+}
 
 // Highest-precedence config source: a token saved via `portix login` always wins over
 // appsettings.json/appsettings.{Environment}.json, regardless of which environment the daemon
