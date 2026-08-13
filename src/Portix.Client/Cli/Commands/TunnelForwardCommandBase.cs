@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Net.Http;
 using System.Net.Http.Json;
 using Portix.Client.Api;
+using Portix.Client.Cli.Update;
 using Spectre.Console;
 using Spectre.Console.Cli;
 
@@ -66,6 +67,10 @@ public abstract class TunnelForwardCommandBase : AsyncCommand<TunnelForwardComma
             AnsiConsole.MarkupLine("[red]Error: malformed response from daemon.[/]");
             return 1;
         }
+
+        // Best-effort only, and must run before the live dashboard below takes over the terminal —
+        // interleaving plain MarkupLine output with AnsiConsole.Live's rendering would corrupt it.
+        await UpdateNotifier.NotifyIfUpdateAvailableAsync(cancellationToken).ConfigureAwait(false);
 
         AnsiConsole.MarkupLine("[grey]Press Ctrl+C to close this tunnel.[/]");
 

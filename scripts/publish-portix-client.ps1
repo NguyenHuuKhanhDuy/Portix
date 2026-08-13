@@ -8,6 +8,11 @@
 .PARAMETER Rid
     One or more .NET RIDs to publish for. Defaults to all three release targets.
 
+.PARAMETER Version
+    Version to embed in the published assembly (AssemblyVersion/FileVersion/InformationalVersion),
+    passed through as `dotnet publish -p:Version=...`. Optional — omitting it leaves the SDK's
+    own default versioning behavior in place.
+
 .EXAMPLE
     ./scripts/publish-portix-client.ps1
     Builds win-x64, osx-x64, and osx-arm64.
@@ -15,10 +20,15 @@
 .EXAMPLE
     ./scripts/publish-portix-client.ps1 -Rid win-x64
     Builds just Windows.
+
+.EXAMPLE
+    ./scripts/publish-portix-client.ps1 -Version 1.2.0
+    Builds all three targets with version 1.2.0 embedded.
 #>
 param(
     [string[]]$Rid = @("win-x64", "osx-x64", "osx-arm64"),
-    [string]$OutputRoot = "publish"
+    [string]$OutputRoot = "publish",
+    [string]$Version
 )
 
 $ErrorActionPreference = "Stop"
@@ -33,12 +43,18 @@ foreach ($r in $Rid) {
 
     Write-Host ""
     Write-Host "Publishing for $r..." -ForegroundColor Cyan
-    dotnet publish $csproj `
-        -c Release `
-        -r $r `
-        --self-contained true `
-        -p:PublishSingleFile=true `
-        -o $outputDir
+    $publishArgs = @(
+        $csproj,
+        "-c", "Release",
+        "-r", $r,
+        "--self-contained", "true",
+        "-p:PublishSingleFile=true",
+        "-o", $outputDir
+    )
+    if ($Version) {
+        $publishArgs += "-p:Version=$Version"
+    }
+    dotnet publish @publishArgs
 
     # .NET drops the .exe extension for non-Windows RIDs; AssemblyName is "portix" either way.
     $exeName = if ($r.StartsWith("win-")) { "portix.exe" } else { "portix" }

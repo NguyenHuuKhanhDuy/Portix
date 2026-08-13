@@ -1,0 +1,61 @@
+name: Release Portix.Client
+
+# Manual only — never fires on push/PR. See openspec/changes/add-client-update-command for why.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to publish, without a leading 'v' (e.g. 1.2.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  publish-and-release:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Publish all platforms
+        run: ./scripts/publish-portix-client.ps1 -Version "${{ inputs.version }}"
+
+      - name: Stage release assets with final names and checksums
+        run: |
+          $stageDir = "release-assets"
+          New-Item -ItemType Directory -Force -Path $stageDir | Out-Null
+
+          $assets = @(
+            @{ Rid = "win-x64"; SourceName = "portix.exe"; FinalName = "portix-win-x64.exe" },
+            @{ Rid = "osx-x64"; SourceName = "portix"; FinalName = "portix-osx-x64" },
+            @{ Rid = "osx-arm64"; SourceName = "portix"; FinalName = "portix-osx-arm64" }
+          )
+
+          foreach ($asset in $assets) {
+            $sourcePath = "publish/portix-client-$($asset.Rid)/$($asset.SourceName)"
+            $destPath = Join-Path $stageDir $asset.FinalName
+            Copy-Item -Path $sourcePath -Destination $destPath
+
+            $hash = (Get-FileHash -Path $destPath -Algorithm SHA256).Hash.ToLower()
+            "$hash  $($asset.FinalName)" | Set-Content -Path "$destPath.sha256" -NoNewline
+          }
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $version = "${{ inputs.version }}"
+          # PowerShell doesn't glob-expand wildcards for native-exe arguments the way bash
+          # does — resolve the asset paths explicitly and splat them.
+          $assetPaths = (Get-ChildItem -Path "release-assets" -File).FullName
+          gh release create "v$version" `
+            --title "v$version" `
+            --notes "Portix.Client v$version" `
+            @assetPaths

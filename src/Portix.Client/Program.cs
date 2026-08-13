@@ -54,13 +54,14 @@ if (Environment.GetEnvironmentVariable("PORTIX_RUN_DAEMON") != "1")
     cli.Configure(config =>
     {
         config.SetApplicationName("portix");
-        config.SetApplicationVersion("0.1.0");
+        config.SetApplicationVersion(VersionInfo.Current);
         config.AddCommand<HttpCommand>("http").WithDescription("Expose a local HTTP port through a public tunnel");
         config.AddCommand<HttpsCommand>("https").WithDescription("Expose a local HTTPS port through a public tunnel");
         config.AddCommand<LsCommand>("ls").WithDescription("List currently open tunnels");
         config.AddCommand<RmCommand>("rm").WithDescription("Close a tunnel by id");
         config.AddCommand<LoginCommand>("login").WithDescription("Save a personal API token for this machine");
         config.AddCommand<LogoutCommand>("logout").WithDescription("Remove the saved API token");
+        config.AddCommand<UpdateCommand>("update").WithDescription("Update to the latest released version");
     });
 
     // With no default command configured, Spectre.Console.Cli's own behavior for zero
@@ -150,6 +151,7 @@ app.Services.GetRequiredService<RequestStore>().Captured += capture =>
 
 app.MapTunnelEndpoints();
 app.MapRequestEndpoints();
+app.MapSystemEndpoints();
 app.MapHub<DashboardHub>("/hubs/dashboard");
 
 // Served from the assembly's embedded wwwroot (see Portix.Client.csproj), not a physical folder —
