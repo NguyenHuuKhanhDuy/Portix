@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Net;
 using System.Net.Http;
+using System.Net.NetworkInformation;
 using System.Net.Security;
 using System.Reflection;
 using Microsoft.AspNetCore.Hosting.Server;
@@ -15,31 +16,12 @@ using Portix.Client.Inspector;
 using Portix.Client.Tunneling;
 using Spectre.Console.Cli;
 
-// Kestrel offers h2c (HTTP/2 without TLS) to the tunnel server; the .NET HttpClient refuses
-// to negotiate HTTP/2 over plaintext unless this switch is set before first use.
 AppContext.SetSwitch("System.Net.Http.SocketsHttpHandler.Http2UnencryptedSupport", true);
 
-// Dual-mode entry point: a human-typed invocation always runs this binary as the thin CLI
-// client, which talks to a running daemon (self-relaunching this same binary if none is
-// reachable — see DaemonLauncher). Only that internal relaunch — never anything a human could
-// type — sets PORTIX_RUN_DAEMON, which is what actually starts this binary as the daemon itself.
-// Everything else, including no arguments, -h/--help, or an invalid subcommand, goes through the
-// CLI framework, so Spectre.Console.Cli's own usage/help/error handling is what a human ever sees
-// for those cases — none of it reaches ASP.NET Core's configuration binding below.
 if (Environment.GetEnvironmentVariable("PORTIX_RUN_DAEMON") != "1")
 {
-    // Double-clicking portix.exe from Explorer is indistinguishable from typing bare `portix`
-    // into an existing shell by args alone (args.Length == 0 either way) — but Explorer creates
-    // a brand-new console owned solely by this process, whereas typing it into cmd/PowerShell/
-    // Windows Terminal runs it inside a console that shell is also attached to. Only the former
-    // case gets a persistent, ready-to-use console instead of --help flashing and closing.
     if (args.Length == 0 && DoubleClickLaunchDetector.IsLikelyDoubleClicked())
     {
-        // AppContext.BaseDirectory is *not* where the exe actually lives for a self-contained
-        // single-file publish — it's .NET's per-run temp self-extraction directory (the bundled
-        // native host/runtime get extracted there to actually execute). Environment.ProcessPath
-        // is the real, running .exe's own path regardless of build mode — the same distinction
-        // DaemonLauncher.GetSelfRelaunchCommand() already relies on for the same reason.
         var exeDirectory = Path.GetDirectoryName(Environment.ProcessPath) ?? AppContext.BaseDirectory;
 
         Process.Start(new ProcessStartInfo("cmd.exe")
@@ -60,38 +42,20 @@ if (Environment.GetEnvironmentVariable("PORTIX_RUN_DAEMON") != "1")
         config.AddCommand<HttpsCommand>("https").WithDescription("Expose a local HTTPS port through a public tunnel");
         config.AddCommand<LsCommand>("ls").WithDescription("List currently open tunnels");
         config.AddCommand<RmCommand>("rm").WithDescription("Close a tunnel by id");
+        config.AddCommand<RestoreCommand>("restore").WithDescription("Reopen the tunnels from the last session (e.g. after a restart)");
         config.AddCommand<LoginCommand>("login").WithDescription("Save a personal API token for this machine");
         config.AddCommand<LogoutCommand>("logout").WithDescription("Remove the saved API token");
         config.AddCommand<UpdateCommand>("update").WithDescription("Update to the latest released version");
     });
-
-    // With no default command configured, Spectre.Console.Cli's own behavior for zero
-    // arguments isn't guaranteed to show help — make that case explicit rather than assume it.
+    
     var effectiveArgs = args.Length == 0 ? new[] { "--help" } : args;
     return await cli.RunAsync(effectiveArgs);
 }
 
-// Portix:ServerUrl has exactly one real source: the persisted config store written by
-// `portix login --server <url>` (see ClientConfigStore below). It's deliberately absent from
-// appsettings.json — this constant is a pure code-level "don't crash before the user has logged
-// in" placeholder, not a value anyone is meant to edit or rely on.
 const string DefaultServerUrl = "http://localhost:5100";
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Fallback config source: a genuinely standalone single-file exe (no companion appsettings.json
-// alongside it — exactly how a GitHub Release asset ships) can't resolve the loose
-// appsettings.json that CreateBuilder just tried to load via self-extraction; confirmed by direct
-// testing that IncludeAllContentForSelfExtract does not make that work (same finding as wwwroot's
-// EmbeddedResource handling in Portix.Client.csproj, and the same fix here: read it back from the
-// assembly's own embedded resources instead). Harmless no-op whenever the loose file WAS found,
-// since both are built from the identical source file.
-//
-// Inserted at index 0 (lowest precedence) rather than appended via AddJsonStream: CreateBuilder
-// already added environment variables and command-line args as later (higher-precedence) sources,
-// and appending here would put this fallback ABOVE them — silently breaking the Portix__<Key>
-// environment-variable override documented in the README. This must sit below everything,
-// including the loose appsettings.json it's a fallback for.
 var embeddedAppSettingsName = Assembly.GetExecutingAssembly().GetManifestResourceNames()
     .FirstOrDefault(name => name.EndsWith("appsettings.json", StringComparison.Ordinal));
 if (embeddedAppSettingsName is not null)
@@ -106,13 +70,26 @@ if (embeddedAppSettingsName is not null)
     }
 }
 
-// Highest-precedence config source: a token saved via `portix login` always wins over
-// appsettings.json/appsettings.{Environment}.json, regardless of which environment the daemon
-// happens to run under. reloadOnChange means a login while the daemon is already running (and
-// stuck retrying a bad token) takes effect on the daemon's very next reconnect attempt.
 builder.Configuration.AddJsonFile(Portix.Client.Cli.ClientConfigStore.ConfigPath, optional: true, reloadOnChange: true);
 
 var localApiPort = builder.Configuration.GetValue("Portix:LocalApiPort", 4040);
+
+// Only the isolated per-invocation daemon (see DaemonLauncher.StartIsolatedAsync) opts into
+// this: it has a preferred-but-not-guaranteed port (so the dashboard URL is stable across runs)
+// and already announces whatever port it actually binds via PORTIX_PORT_ANNOUNCE_FILE. The
+// shared daemon must stay at its configured port or fail outright — other CLI invocations expect
+// to find it there specifically, with no such announce-and-discover mechanism.
+//
+// Checked via the OS's own active-listener table (IPGlobalProperties), not by trying to bind a
+// throwaway socket ourselves first: a TcpListener probe can report a port as free even when
+// Kestrel's own socket transport would immediately fail to bind it (different default socket
+// options) — confirmed by direct testing, not assumed.
+if (localApiPort != 0
+    && Environment.GetEnvironmentVariable("PORTIX_ALLOW_PORT_FALLBACK") == "1"
+    && IsPortInUse(localApiPort))
+{
+    localApiPort = 0;
+}
 
 builder.WebHost.ConfigureKestrel(options =>
 {
@@ -120,18 +97,11 @@ builder.WebHost.ConfigureKestrel(options =>
     options.Listen(IPAddress.Loopback, localApiPort);
 });
 
+static bool IsPortInUse(int port) =>
+    IPGlobalProperties.GetIPGlobalProperties().GetActiveTcpListeners().Any(ep => ep.Port == port);
+
 builder.Services.AddSignalR();
 
-// AllowAutoRedirect must stay false: a 3xx from the local app has to reach the public caller
-// unmodified so their own browser follows it against the public tunnel domain, not have this
-// HttpClient resolve it internally against localhost (which also breaks outright, since the
-// redirect follow needs to resend the request body and that body is a single-read network stream).
-//
-// Certificate validation is skipped unconditionally (not per-request) because this specific
-// keyed HttpClient has exactly one purpose in this codebase: reaching a tunnel's own
-// "localhost:{port}" target (RequestForwarder, and the replay endpoint) — it never dials
-// anywhere else. That's exactly the case (a developer's own self-signed/dev-mode HTTPS
-// certificate) this needs to tolerate; it is not a general "don't validate certs" setting.
 builder.Services.AddKeyedSingleton<HttpClient>("local", (_, _) =>
     new HttpClient(new SocketsHttpHandler
     {
@@ -160,9 +130,6 @@ var serverUrlSource = File.Exists(Portix.Client.Cli.ClientConfigStore.ConfigPath
     : "built-in default — run 'portix login <token> --server <url>' to configure a real one";
 app.Logger.LogInformation("Using server URL {ServerUrl} (from {Source})", effectiveServerUrl, serverUrlSource);
 
-// An isolated daemon (see DaemonLauncher.StartIsolatedAsync) binds an OS-assigned free port and
-// tells its spawning CLI process which one it got by writing it to this file once Kestrel has
-// actually bound it — the CLI can't know the port in advance since it asked for port 0.
 var portAnnounceFile = Environment.GetEnvironmentVariable("PORTIX_PORT_ANNOUNCE_FILE");
 if (portAnnounceFile is not null)
 {
@@ -178,21 +145,32 @@ if (portAnnounceFile is not null)
 
 // Push realtime updates to the dashboard as soon as the pieces that generate them exist.
 var hubContext = app.Services.GetRequiredService<IHubContext<DashboardHub>>();
-app.Services.GetRequiredService<TunnelManager>().TunnelChanged += tunnel =>
+var tunnelManager = app.Services.GetRequiredService<TunnelManager>();
+tunnelManager.TunnelChanged += tunnel =>
     _ = hubContext.Clients.All.SendAsync("TunnelStatusChanged", TunnelDto.From(tunnel));
 app.Services.GetRequiredService<RequestStore>().Captured += capture =>
     _ = hubContext.Clients.All.SendAsync("RequestCaptured", CapturedRequestSummaryDto.From(capture));
+
+// Remembers opened tunnels to disk (see TunnelSessionStore) so `portix restore` can bring them
+// back after a crash or machine restart. Upserts only the one port that just changed — never a
+// blind full-file overwrite — so two separate `portix http` invocations (each its own isolated
+// daemon process) merge their entries into the same file instead of clobbering each other's.
+// Deliberately does nothing on close: an entry is only ever added/updated when a tunnel opens,
+// never removed just because it was closed — closing (Ctrl+C, `portix rm`, dashboard) leaves its
+// entry as-is, so `portix restore` still offers it back later even after a deliberate close.
+tunnelManager.TunnelChanged += tunnel =>
+{
+    if (tunnel.Status != TunnelStatus.Closed)
+    {
+        TunnelSessionStore.Upsert(new PersistedTunnel(tunnel.Scheme, tunnel.LocalPort, tunnel.Subdomain));
+    }
+};
 
 app.MapTunnelEndpoints();
 app.MapRequestEndpoints();
 app.MapSystemEndpoints();
 app.MapHub<DashboardHub>("/hubs/dashboard");
 
-// Served from the assembly's embedded wwwroot (see Portix.Client.csproj), not a physical folder —
-// works identically whether this runs as a normal multi-file build or a single-file publish with
-// nothing else alongside it. IncludeAllContentForSelfExtract alone does not make ASP.NET Core's
-// WebRootPath resolution find self-extracted content, so a physical-file-based UseStaticFiles()
-// would silently fail to find wwwroot in the single-file-alone case.
 var embeddedWebRoot = new ManifestEmbeddedFileProvider(Assembly.GetExecutingAssembly(), "wwwroot");
 app.UseDefaultFiles(new DefaultFilesOptions { FileProvider = embeddedWebRoot });
 app.UseStaticFiles(new StaticFileOptions { FileProvider = embeddedWebRoot });

@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using System.Net.Http;
 using System.Runtime.Versioning;
 using System.Security.Cryptography;
@@ -29,6 +30,27 @@ public static class ExecutableUpdater
         }
 
         return bytes;
+    }
+
+    /// <summary>
+    /// Extracts the single executable entry from a downloaded release zip (see
+    /// PlatformAsset.CurrentAssetName — each release asset is a zip, not a bare executable, so a
+    /// manual download-and-extract leaves the user with a correctly-named `portix`/`portix.exe`).
+    /// </summary>
+    public static byte[] ExtractExecutableFromZip(byte[] zipBytes)
+    {
+        using var zipStream = new MemoryStream(zipBytes);
+        using var archive = new ZipArchive(zipStream, ZipArchiveMode.Read);
+        if (archive.Entries.Count != 1)
+        {
+            throw new InvalidOperationException(
+                $"Expected the downloaded archive to contain exactly one file, found {archive.Entries.Count}.");
+        }
+
+        using var entryStream = archive.Entries[0].Open();
+        using var resultStream = new MemoryStream();
+        entryStream.CopyTo(resultStream);
+        return resultStream.ToArray();
     }
 
     /// <summary>Asks the local daemon (if reachable) to shut down, and waits for it to actually stop before returning.</summary>

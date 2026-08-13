@@ -99,8 +99,9 @@ public sealed class UpdateCommand : AsyncCommand<UpdateCommand.Settings>
         byte[] newExecutableBytes;
         try
         {
-            newExecutableBytes = await ExecutableUpdater.DownloadAndVerifyAsync(
+            var zipBytes = await ExecutableUpdater.DownloadAndVerifyAsync(
                 client, asset.BrowserDownloadUrl, checksumAsset.BrowserDownloadUrl, cancellationToken).ConfigureAwait(false);
+            newExecutableBytes = ExecutableUpdater.ExtractExecutableFromZip(zipBytes);
         }
         catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException)
         {

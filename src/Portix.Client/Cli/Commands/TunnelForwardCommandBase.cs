@@ -3,6 +3,7 @@ using System.Net.Http;
 using System.Net.Http.Json;
 using Portix.Client.Api;
 using Portix.Client.Cli.Update;
+using Portix.Client.Tunneling;
 using Spectre.Console;
 using Spectre.Console.Cli;
 
@@ -68,9 +69,17 @@ public abstract class TunnelForwardCommandBase : AsyncCommand<TunnelForwardComma
             return 1;
         }
 
+        // A CLI-initiated open is "this is what I'm doing now" — reset the persisted session to
+        // just this tunnel rather than merging with whatever else was recorded (that's what the
+        // dashboard's own "add tunnel" does instead, via TunnelManager's own TunnelChanged->Upsert
+        // hook in Program.cs; this call is CLI-only and intentionally bypasses that merge).
+        TunnelSessionStore.ResetTo(new PersistedTunnel(tunnel.Scheme, tunnel.LocalPort, tunnel.Subdomain));
+
         // Best-effort only, and must run before the live dashboard below takes over the terminal —
         // interleaving plain MarkupLine output with AnsiConsole.Live's rendering would corrupt it.
         await UpdateNotifier.NotifyIfUpdateAvailableAsync(cancellationToken).ConfigureAwait(false);
+
+        BrowserLauncher.Open(baseUri);
 
         AnsiConsole.MarkupLine("[grey]Press Ctrl+C to close this tunnel.[/]");
 

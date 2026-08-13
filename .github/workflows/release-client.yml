@@ -41,24 +41,57 @@ jobs:
       - name: Publish all platforms
         run: ./scripts/publish-portix-client.ps1 -Version "${{ inputs.version }}"
 
-      - name: Stage release assets with final names and checksums
+      - name: Stage release assets as zips (so the binary inside is always named `portix`/`portix.exe`) with checksums
+        # Zipping (rather than uploading portix-win-x64.exe etc. directly) means a user who just
+        # downloads and extracts a release ends up with a correctly-named `portix`/`portix.exe`
+        # they can run immediately — no manual rename needed, which today's bare-exe-with-a-
+        # platform-suffix asset name required.
         run: |
+          Add-Type -AssemblyName System.IO.Compression
+
           $stageDir = "release-assets"
           New-Item -ItemType Directory -Force -Path $stageDir | Out-Null
 
           $assets = @(
-            @{ Rid = "win-x64"; SourceName = "portix.exe"; FinalName = "portix-win-x64.exe" },
-            @{ Rid = "osx-x64"; SourceName = "portix"; FinalName = "portix-osx-x64" },
-            @{ Rid = "osx-arm64"; SourceName = "portix"; FinalName = "portix-osx-arm64" }
+            @{ Rid = "win-x64"; SourceName = "portix.exe"; EntryName = "portix.exe"; ZipName = "portix-win-x64.zip"; Unix = $false },
+            @{ Rid = "osx-x64"; SourceName = "portix"; EntryName = "portix"; ZipName = "portix-osx-x64.zip"; Unix = $true },
+            @{ Rid = "osx-arm64"; SourceName = "portix"; EntryName = "portix"; ZipName = "portix-osx-arm64.zip"; Unix = $true }
           )
 
           foreach ($asset in $assets) {
             $sourcePath = "publish/portix-client-$($asset.Rid)/$($asset.SourceName)"
-            $destPath = Join-Path $stageDir $asset.FinalName
-            Copy-Item -Path $sourcePath -Destination $destPath
+            $zipPath = Join-Path $stageDir $asset.ZipName
 
-            $hash = (Get-FileHash -Path $destPath -Algorithm SHA256).Hash.ToLower()
-            "$hash  $($asset.FinalName)" | Set-Content -Path "$destPath.sha256" -NoNewline
+            $zipStream = [System.IO.File]::Open($zipPath, [System.IO.FileMode]::Create)
+            try {
+              $archive = New-Object System.IO.Compression.ZipArchive($zipStream, [System.IO.Compression.ZipArchiveMode]::Create)
+              try {
+                $entry = $archive.CreateEntry($asset.EntryName)
+                if ($asset.Unix) {
+                  # Upper 16 bits of ExternalAttributes carry the Unix st_mode; 0x81ED = octal
+                  # 0100755 (regular file, rwxr-xr-x) — the convention Info-Zip-compatible tools
+                  # (including macOS's built-in unzip/Archive Utility) read to restore the
+                  # executable bit on extraction. Windows Explorer's own zip has no concept of
+                  # this and just ignores it, so it's safe to always set for the macOS assets.
+                  $entry.ExternalAttributes = 0x81ED0000
+                }
+
+                $entryStream = $entry.Open()
+                try {
+                  $sourceBytes = [System.IO.File]::ReadAllBytes($sourcePath)
+                  $entryStream.Write($sourceBytes, 0, $sourceBytes.Length)
+                } finally {
+                  $entryStream.Close()
+                }
+              } finally {
+                $archive.Dispose()
+              }
+            } finally {
+              $zipStream.Close()
+            }
+
+            $hash = (Get-FileHash -Path $zipPath -Algorithm SHA256).Hash.ToLower()
+            "$hash  $($asset.ZipName)" | Set-Content -Path "$zipPath.sha256" -NoNewline
           }
 
       - name: Create GitHub Release

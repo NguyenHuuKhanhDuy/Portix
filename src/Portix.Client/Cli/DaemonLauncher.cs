@@ -75,7 +75,12 @@ public static class DaemonLauncher
             startInfo.Arguments = arguments;
         }
 
-        startInfo.Environment["Portix__LocalApiPort"] = "0";
+        // Prefer a fixed, memorable port so the dashboard URL is stable across runs; only a
+        // second concurrent isolated daemon (another tunnel already open) needs to fall back to
+        // an OS-assigned one, which is what PORTIX_ALLOW_PORT_FALLBACK tells Program.cs to do
+        // rather than fail outright when this preferred port is already taken.
+        startInfo.Environment["Portix__LocalApiPort"] = "4041";
+        startInfo.Environment["PORTIX_ALLOW_PORT_FALLBACK"] = "1";
         startInfo.Environment["PORTIX_PORT_ANNOUNCE_FILE"] = announceFilePath;
         startInfo.Environment["PORTIX_RUN_DAEMON"] = "1";
 

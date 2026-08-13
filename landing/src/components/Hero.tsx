@@ -14,10 +14,10 @@ export default function Hero() {
       </p>
       <div className="flex flex-col gap-3 sm:flex-row">
         <a
-          href={GITHUB_URL}
+          href="#download"
           className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 font-medium text-primary-foreground transition-opacity hover:opacity-90"
         >
-          Get Started
+          Download
           <ArrowRight className="size-4" />
         </a>
         <a
