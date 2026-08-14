@@ -131,7 +131,7 @@ app.MapPost("/control", (HttpContext context, ControlEndpoint endpoint, AuthServ
 app.MapPost("/data/{streamId}", (HttpContext context, DataEndpoint endpoint, string streamId) => endpoint.HandleAsync(context, streamId))
     .ExcludeFromDescription();
 
-if (adminEnabled)
+if (adminEnabled && !app.Environment.IsProduction())
 {
     app.MapAdminEndpoints();
     app.UseSwagger();
