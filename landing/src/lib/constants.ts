@@ -1,3 +1,6 @@
+export const AUTHOR_NAME = "Duy Nguyen Huu Khanh";
+export const AUTHOR_EMAIL = "duynguyenhuukhanh.work@gmail.com";
+
 export const GITHUB_URL = "https://github.com/NguyenHuuKhanhDuy/Portix";
 export const README_URL = `${GITHUB_URL}#readme`;
 export const RELEASES_URL = `${GITHUB_URL}/releases`;
