@@ -1,5 +1,7 @@
 import { Globe, Laptop, LayoutDashboard, Radio, Server } from "lucide-react";
+import { motion } from "motion/react";
 import { Fragment } from "react";
+import Reveal from "./Reveal";
 
 const COMPONENTS = [
   {
@@ -62,7 +64,7 @@ function FlowDiagram() {
 export default function Architecture() {
   return (
     <section className="mx-auto max-w-6xl px-6 py-16 sm:py-20">
-      <div className="mx-auto max-w-2xl text-center">
+      <Reveal className="mx-auto max-w-2xl text-center">
         <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">
           How a tunnel works
         </h2>
@@ -72,18 +74,20 @@ export default function Architecture() {
           signals the Client, which opens a data connection back to relay bytes
           in both directions — including WebSocket upgrades.
         </p>
-      </div>
+      </Reveal>
       <FlowDiagram />
       <div className="mt-12 grid gap-6 sm:grid-cols-3">
         {COMPONENTS.map(({ icon: Icon, title, description }) => (
-          <div
+          <motion.div
             key={title}
+            whileHover={{ y: -4 }}
+            transition={{ duration: 0.2 }}
             className="rounded-xl border border-border bg-card p-6"
           >
             <Icon className="size-6 text-primary" />
             <h3 className="mt-4 font-medium">{title}</h3>
             <p className="mt-2 text-sm text-muted-foreground">{description}</p>
-          </div>
+          </motion.div>
         ))}
       </div>
     </section>

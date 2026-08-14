@@ -60,6 +60,14 @@ body {
     }
 }
 
+/* Faint grid backdrop (Hero section) — line color follows --border, so it adapts to the theme automatically. */
+.bg-grid {
+    background-image:
+        repeating-linear-gradient(to right, var(--border) 0 1px, transparent 1px 48px),
+        repeating-linear-gradient(to bottom, var(--border) 0 1px, transparent 1px 48px);
+    opacity: 0.4;
+}
+
 /* Tunnel flow diagram (Architecture section): a single dot travels the full
    width of the diagram (request), then back (response), on a loop. */
 @keyframes tunnel-flow {

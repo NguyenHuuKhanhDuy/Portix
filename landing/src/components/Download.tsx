@@ -1,16 +1,22 @@
+import { motion } from 'motion/react'
 import { Apple, Download as DownloadIcon, Laptop, ShieldAlert } from 'lucide-react'
 import { DOWNLOAD_OSX_ARM64, DOWNLOAD_OSX_X64, DOWNLOAD_WIN_X64, RELEASES_URL } from '../lib/constants'
 import Collapsible from './Collapsible'
+import Reveal from './Reveal'
 
 export default function Download() {
   return (
     <section id="download" className="mx-auto max-w-4xl px-6 py-16 sm:py-20">
-      <div className="mx-auto max-w-2xl text-center">
+      <Reveal className="mx-auto max-w-2xl text-center">
         <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">Download Portix</h2>
         <p className="mt-3 text-muted-foreground">Grab the latest build for your platform — extract and run, no install needed.</p>
-      </div>
+      </Reveal>
       <div className="mx-auto mt-10 grid max-w-2xl gap-4 sm:grid-cols-2">
-        <div className="flex flex-col items-center gap-3 rounded-xl border border-border bg-card p-6 text-center">
+        <motion.div
+          whileHover={{ y: -4 }}
+          transition={{ duration: 0.2 }}
+          className="flex flex-col items-center gap-3 rounded-xl border border-border bg-card p-6 text-center"
+        >
           <Laptop className="size-8 text-primary" />
           <div>
             <h3 className="font-medium">Windows</h3>
@@ -23,8 +29,12 @@ export default function Download() {
             <DownloadIcon className="size-4" />
             Download
           </a>
-        </div>
-        <div className="flex flex-col items-center gap-3 rounded-xl border border-border bg-card p-6 text-center">
+        </motion.div>
+        <motion.div
+          whileHover={{ y: -4 }}
+          transition={{ duration: 0.2 }}
+          className="flex flex-col items-center gap-3 rounded-xl border border-border bg-card p-6 text-center"
+        >
           <Apple className="size-8 text-primary" />
           <div>
             <h3 className="font-medium">macOS</h3>
@@ -45,7 +55,7 @@ export default function Download() {
               Intel
             </a>
           </div>
-        </div>
+        </motion.div>
       </div>
       <Collapsible
         className="mx-auto mt-8 max-w-2xl bg-card"

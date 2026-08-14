@@ -1,6 +1,7 @@
 import { ArrowRight, Terminal } from 'lucide-react'
 import { EXAMPLE_API_TOKEN, EXAMPLE_LOCAL_PORT, EXAMPLE_SERVER_URL, README_URL } from '../lib/constants'
 import Collapsible from './Collapsible'
+import Reveal from './Reveal'
 
 const STEPS = [
   {
@@ -33,7 +34,7 @@ const CLI_COMMANDS = [
 export default function GettingStarted() {
   return (
     <section className="mx-auto max-w-4xl px-6 py-16 sm:py-20">
-      <div className="rounded-2xl border border-border bg-card px-6 py-12 text-center sm:px-12">
+      <Reveal className="rounded-2xl border border-border bg-card px-6 py-12 text-center sm:px-12">
         <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">Ready to expose your first app?</h2>
         <p className="mx-auto mt-3 max-w-xl text-muted-foreground">
           Three steps to get a public URL pointing at something running on your machine.
@@ -81,7 +82,7 @@ export default function GettingStarted() {
           Read the full setup guide
           <ArrowRight className="size-4" />
         </a>
-      </div>
+      </Reveal>
     </section>
   )
 }
