@@ -27,11 +27,20 @@ POST /admin/users
 ```
 
 returns `{ "userId": "...", "token": "..." }` — the raw token is shown once and is what that user's
-`Portix.Client` should be configured with (`Portix:Token` in the client's `appsettings.json`).
+`Portix.Client` should be configured with (`Portix:Token` in the client's `appsettings.json`). Omit
+`planId` to default to the seeded `Free` plan (id `1`); pass another plan's id to assign it instead.
 
-Other endpoints: `POST /admin/users/{id}/tokens` (issue an additional token), `DELETE
-/admin/tokens/{id}` (revoke a token), `PUT /admin/users/{id}/plan` with `{ "plan": "Pro" }` (change a
-user's plan; plans are `Free`, limited to 1 concurrent tunnel, and `Pro`, limited to 5).
+Other endpoints: `POST /admin/users/{id}/tokens` (issue an additional token), `POST
+/admin/users/{id}/tokens/restore` with `{ "token": "<raw-token>" }` (register a specific raw token
+value instead of generating one — for recovering a client that already has a token saved locally
+after e.g. a database loss), `DELETE /admin/tokens/{id}` (revoke a token), `PUT
+/admin/users/{id}/plan` with `{ "planId": 2 }` (change a user's plan).
+
+Plans themselves are managed the same way: `GET /admin/plans` (list), `POST /admin/plans` with `{
+"name": "Pro", "maxConcurrentTunnels": 5 }` (create), `PUT /admin/plans/{id}` with the same body
+(rename / change the limit), `DELETE /admin/plans/{id}` (delete — rejected with a 409 if any user is
+still assigned to it). A fresh database seeds `Free` (id `1`, 1 concurrent tunnel) and `Pro` (id `2`,
+5 concurrent tunnels).
 
 ## HTTPS via a reverse proxy
 

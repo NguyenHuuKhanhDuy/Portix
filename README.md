@@ -64,7 +64,7 @@ Configure it in `src/Portix.Server/appsettings.json` (or via `Portix__<Key>` env
 | `Portix:PublicHostSuffix` | The domain tunnels are assigned under, e.g. `tunnel.example.com` → a tunnel gets `abc123.tunnel.example.com`. |
 | `Portix:PublicUrlScheme` / `Portix:PublicUrlPort` | Scheme/port advertised in generated public URLs — set these if a reverse proxy (nginx, Caddy) terminates TLS in front of the Server on a different port than `PublicPort`. |
 | `Portix:AdminToken` | Bearer token that gates the admin API. Leave empty to disable the admin API entirely. |
-| `Portix:Database:Path` | SQLite file path for users/tokens/plans. |
+| `Portix:Database:Path` | SQLite file path for users/tokens/plans. In production, point this at a directory outside the deployed app folder (e.g. `/var/lib/portix/portix.db` via the `Portix__Database__Path` environment variable), so redeploying the app — which typically wipes and replaces its own folder — never touches the database. |
 
 The Server needs at least one user + API token before a client can connect — see [Admin API](#admin-api).
 
@@ -136,16 +136,20 @@ The Server's admin API (`/admin/*`, only enabled when `Portix:AdminToken` is set
 | `GET /admin/users` | List all users, with plan, disabled status, and active tunnel count. |
 | `GET /admin/users/{id}` | Look up one user. |
 | `PUT /admin/users/{id}/status` | Enable/disable a user. |
-| `PUT /admin/users/{id}/plan` | Change a user's plan (governs max concurrent tunnels). |
+| `PUT /admin/users/{id}/plan` | Change a user's plan by id (governs max concurrent tunnels). |
 | `DELETE /admin/users/{id}` | Delete a user (and their tokens; disconnects any active session). |
-| `POST /admin/users/{id}/tokens` | Issue an additional token for a user. |
+| `POST /admin/users/{id}/tokens` | Issue an additional (freshly generated) token for a user. |
+| `POST /admin/users/{id}/tokens/restore` | Register a specific raw token value for a user, instead of generating one — for restoring a token a client already has saved locally (e.g. after a database loss). |
 | `GET /admin/users/{id}/tokens` | List a user's tokens (metadata only — never the raw value). |
 | `DELETE /admin/tokens/{id}` | Revoke a token. |
 | `GET /admin/plans` | List available plans. |
+| `POST /admin/plans` | Create a plan. |
+| `PUT /admin/plans/{id}` | Rename a plan / change its concurrent-tunnel limit. |
+| `DELETE /admin/plans/{id}` | Delete a plan (rejected with 409 if any user is still assigned to it). |
 | `GET /admin/sessions` | List currently connected sessions and their tunnels. |
 | `DELETE /admin/sessions/{id}` | Force-disconnect a session. |
 
-A fresh database seeds two plans: **Free** (1 concurrent tunnel) and **Pro** (5).
+A fresh database seeds two plans: **Free** (id `1`, 1 concurrent tunnel) and **Pro** (id `2`, 5).
 
 ## Building a standalone executable
 

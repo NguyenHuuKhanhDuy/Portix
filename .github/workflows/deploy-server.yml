@@ -21,6 +21,8 @@ jobs:
         run: dotnet publish -c Release -o ./publish
 
       - name: Clean remote target directory
+        # Safe to wipe: portix.db lives outside this directory (Portix__Database__Path is set to
+        # /var/lib/portix/portix.db on the server) precisely so this step can never touch it.
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.DEPLOY_HOST }}

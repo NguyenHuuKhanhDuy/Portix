@@ -5,11 +5,14 @@ using Portix.Server.Sessions;
 
 namespace Portix.Server.Admin;
 
-public sealed record CreateUserRequest(string Name, string? Plan);
+public sealed record CreateUserRequest(string Name, int? PlanId);
 public sealed record CreateUserResponse(Guid UserId, string Token);
 public sealed record IssueTokenResponse(Guid TokenId, string Token);
-public sealed record ChangePlanRequest(string Plan);
+public sealed record RestoreTokenRequest(string Token);
+public sealed record ChangePlanRequest(int PlanId);
 public sealed record SetUserStatusRequest(bool IsDisabled);
+public sealed record CreatePlanRequest(string Name, int MaxConcurrentTunnels);
+public sealed record UpdatePlanRequest(string Name, int MaxConcurrentTunnels);
 public sealed record AdminUserSummaryDto(Guid Id, string Name, string PlanName, bool IsDisabled, DateTimeOffset CreatedAtUtc, int ActiveTunnelCount);
 public sealed record AdminTokenSummaryDto(Guid Id, DateTimeOffset CreatedAtUtc, bool IsActive);
 public sealed record AdminPlanSummaryDto(int Id, string Name, int MaxConcurrentTunnels);
@@ -25,11 +28,11 @@ public static class AdminEndpoints
 
         admin.MapPost("/users", async (CreateUserRequest request, PortixDbContext db, CancellationToken ct) =>
         {
-            var planName = string.IsNullOrWhiteSpace(request.Plan) ? Plan.FreeName : request.Plan;
-            var plan = await db.Plans.SingleOrDefaultAsync(p => p.Name == planName, ct).ConfigureAwait(false);
+            var planId = request.PlanId ?? Plan.FreeId;
+            var plan = await db.Plans.FindAsync([planId], ct).ConfigureAwait(false);
             if (plan is null)
             {
-                return Results.BadRequest($"Unknown plan '{planName}'.");
+                return Results.BadRequest($"Unknown plan id {planId}.");
             }
 
             var user = new User { Id = Guid.NewGuid(), Name = request.Name, PlanId = plan.Id };
@@ -60,6 +63,33 @@ public static class AdminEndpoints
             return Results.Ok(new IssueTokenResponse(token.Id, rawToken));
         });
 
+        admin.MapPost("/users/{id:guid}/tokens/restore", async (Guid id, RestoreTokenRequest request, PortixDbContext db, CancellationToken ct) =>
+        {
+            var userExists = await db.Users.AnyAsync(u => u.Id == id, ct).ConfigureAwait(false);
+            if (!userExists)
+            {
+                return Results.NotFound();
+            }
+
+            if (string.IsNullOrWhiteSpace(request.Token))
+            {
+                return Results.BadRequest("Token must not be empty.");
+            }
+
+            var tokenHash = TokenHasher.Hash(request.Token);
+            if (await db.ApiTokens.AnyAsync(t => t.TokenHash == tokenHash, ct).ConfigureAwait(false))
+            {
+                return Results.Conflict("This token is already registered.");
+            }
+
+            var token = new ApiToken { Id = Guid.NewGuid(), UserId = id, TokenHash = tokenHash };
+            db.ApiTokens.Add(token);
+
+            await db.SaveChangesAsync(ct).ConfigureAwait(false);
+
+            return Results.Ok(new IssueTokenResponse(token.Id, request.Token));
+        });
+
         admin.MapDelete("/tokens/{id:guid}", async (Guid id, PortixDbContext db, CancellationToken ct) =>
         {
             var token = await db.ApiTokens.FindAsync([id], ct).ConfigureAwait(false);
@@ -82,10 +112,10 @@ public static class AdminEndpoints
                 return Results.NotFound();
             }
 
-            var plan = await db.Plans.SingleOrDefaultAsync(p => p.Name == request.Plan, ct).ConfigureAwait(false);
+            var plan = await db.Plans.FindAsync([request.PlanId], ct).ConfigureAwait(false);
             if (plan is null)
             {
-                return Results.BadRequest($"Unknown plan '{request.Plan}'.");
+                return Results.BadRequest($"Unknown plan id {request.PlanId}.");
             }
 
             user.PlanId = plan.Id;
@@ -164,6 +194,63 @@ public static class AdminEndpoints
                 .ToListAsync(ct).ConfigureAwait(false);
 
             return Results.Ok(plans);
+        });
+
+        admin.MapPost("/plans", async (CreatePlanRequest request, PortixDbContext db, CancellationToken ct) =>
+        {
+            if (await db.Plans.AnyAsync(p => p.Name == request.Name, ct).ConfigureAwait(false))
+            {
+                return Results.Conflict($"A plan named '{request.Name}' already exists.");
+            }
+
+            var plan = new Plan { Name = request.Name, MaxConcurrentTunnels = request.MaxConcurrentTunnels };
+            db.Plans.Add(plan);
+
+            await db.SaveChangesAsync(ct).ConfigureAwait(false);
+
+            return Results.Ok(new AdminPlanSummaryDto(plan.Id, plan.Name, plan.MaxConcurrentTunnels));
+        });
+
+        admin.MapPut("/plans/{id:int}", async (int id, UpdatePlanRequest request, PortixDbContext db, CancellationToken ct) =>
+        {
+            var plan = await db.Plans.FindAsync([id], ct).ConfigureAwait(false);
+            if (plan is null)
+            {
+                return Results.NotFound();
+            }
+
+            if (await db.Plans.AnyAsync(p => p.Id != id && p.Name == request.Name, ct).ConfigureAwait(false))
+            {
+                return Results.Conflict($"A plan named '{request.Name}' already exists.");
+            }
+
+            plan.Name = request.Name;
+            plan.MaxConcurrentTunnels = request.MaxConcurrentTunnels;
+
+            await db.SaveChangesAsync(ct).ConfigureAwait(false);
+
+            return Results.NoContent();
+        });
+
+        admin.MapDelete("/plans/{id:int}", async (int id, PortixDbContext db, CancellationToken ct) =>
+        {
+            var plan = await db.Plans.FindAsync([id], ct).ConfigureAwait(false);
+            if (plan is null)
+            {
+                return Results.NotFound();
+            }
+
+            // The User -> Plan foreign key is DeleteBehavior.Restrict, so the database would reject
+            // this anyway — checked here first for a clear 409 instead of an unhandled DbUpdateException.
+            if (await db.Users.AnyAsync(u => u.PlanId == id, ct).ConfigureAwait(false))
+            {
+                return Results.Conflict("Cannot delete a plan that still has users assigned to it.");
+            }
+
+            db.Plans.Remove(plan);
+            await db.SaveChangesAsync(ct).ConfigureAwait(false);
+
+            return Results.NoContent();
         });
 
         admin.MapGet("/sessions", (SessionRegistry registry) =>
