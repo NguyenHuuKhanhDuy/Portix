@@ -1,5 +1,6 @@
-import { Apple, ChevronDown, Download as DownloadIcon, Laptop, ShieldAlert } from 'lucide-react'
+import { Apple, Download as DownloadIcon, Laptop, ShieldAlert } from 'lucide-react'
 import { DOWNLOAD_OSX_ARM64, DOWNLOAD_OSX_X64, DOWNLOAD_WIN_X64, RELEASES_URL } from '../lib/constants'
+import Collapsible from './Collapsible'
 
 export default function Download() {
   return (
@@ -46,14 +47,66 @@ export default function Download() {
           </div>
         </div>
       </div>
-      <details className="group mx-auto mt-8 max-w-2xl rounded-xl border border-border bg-card">
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 p-4 font-medium marker:content-none">
+      <Collapsible
+        className="mx-auto mt-8 max-w-2xl bg-card"
+        summary={
+          <span className="flex items-center gap-2">
+            <Laptop className="size-4 text-primary" />
+            Windows install instructions
+          </span>
+        }
+      >
+        <div className="space-y-5 border-t border-border p-6 pt-5 text-sm text-muted-foreground">
+          <div>
+            <p className="font-medium text-foreground">1. Extract the binary</p>
+            <p className="mt-1">
+              Unzip the downloaded file to a folder you'll keep around, e.g.{' '}
+              <code className="rounded bg-muted px-1.5 py-0.5 text-xs">C:\Portix</code>.
+            </p>
+          </div>
+          <div>
+            <p className="font-medium text-foreground">2. (Optional) Add it to PATH</p>
+            <p className="mt-1">
+              So you can run <code className="rounded bg-muted px-1.5 py-0.5 text-xs">portix</code> from any
+              terminal without typing the full path. In PowerShell:
+            </p>
+            <pre className="mt-2 overflow-x-auto rounded-lg bg-muted p-3 font-mono text-xs text-foreground">
+              [Environment]::SetEnvironmentVariable('Path', $env:Path + ';C:\Portix', 'User')
+            </pre>
+            <p className="mt-2">
+              Or manually: Settings → System → About → Advanced system settings → Environment Variables → edit{' '}
+              <code className="rounded bg-muted px-1.5 py-0.5 text-xs">Path</code> under "User variables" → add the
+              folder. Restart your terminal afterwards.
+            </p>
+          </div>
+          <div>
+            <p className="font-medium text-foreground">3. Run Portix</p>
+            <pre className="mt-2 overflow-x-auto rounded-lg bg-muted p-3 font-mono text-xs text-foreground">portix --help</pre>
+          </div>
+          <div className="rounded-lg border border-accent/30 bg-accent/10 p-4">
+            <p className="flex items-center gap-2 font-medium text-foreground">
+              <ShieldAlert className="size-4 text-accent" />
+              Windows SmartScreen notice
+            </p>
+            <p className="mt-2">
+              If you see <em>"Windows protected your PC"</em>:
+            </p>
+            <ol className="mt-2 list-decimal space-y-1 pl-5">
+              <li>Click "More info"</li>
+              <li>Click "Run anyway"</li>
+            </ol>
+          </div>
+        </div>
+      </Collapsible>
+      <Collapsible
+        className="mx-auto mt-4 max-w-2xl bg-card"
+        summary={
           <span className="flex items-center gap-2">
             <Apple className="size-4 text-primary" />
             macOS install instructions
           </span>
-          <ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180" />
-        </summary>
+        }
+      >
         <div className="space-y-5 border-t border-border p-6 pt-5 text-sm text-muted-foreground">
           <div>
             <p className="font-medium text-foreground">1. Extract the binary</p>
@@ -87,7 +140,7 @@ export default function Download() {
             </ol>
           </div>
         </div>
-      </details>
+      </Collapsible>
 
       <p className="mt-6 text-center text-sm text-muted-foreground">
         See all versions on{' '}

@@ -1,7 +1,12 @@
+import { EXAMPLE_LOCAL_PORT, EXAMPLE_TUNNEL_DOMAIN, EXAMPLE_TUNNEL_SUBDOMAIN } from '../lib/constants'
+
 const OUTPUT_LINES = [
   { label: 'Session Status', value: 'online' },
   { label: 'Web Interface', value: 'http://127.0.0.1:4040' },
-  { label: 'Forwarding', value: 'https://a1b2c3d4.tunnel.example.com -> http://localhost:3000' },
+  {
+    label: 'Forwarding',
+    value: `https://${EXAMPLE_TUNNEL_SUBDOMAIN}.${EXAMPLE_TUNNEL_DOMAIN} -> http://localhost:${EXAMPLE_LOCAL_PORT}`,
+  },
 ]
 
 const REQUEST_ROWS = [
@@ -17,7 +22,7 @@ export default function CliDemo() {
         <p className="mt-3 text-muted-foreground">Open a tunnel and watch requests come through as they happen.</p>
       </div>
       <div className="mt-10 overflow-x-auto rounded-xl border border-border bg-card p-6 font-mono text-sm">
-        <p className="text-primary">$ portix http 3000</p>
+        <p className="text-primary">$ portix http {EXAMPLE_LOCAL_PORT}</p>
         <div className="mt-4 space-y-1">
           {OUTPUT_LINES.map(({ label, value }) => (
             <p key={label} className="whitespace-nowrap text-muted-foreground">

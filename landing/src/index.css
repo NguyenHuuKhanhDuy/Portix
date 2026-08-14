@@ -54,6 +54,12 @@ body {
     color: var(--color-foreground);
 }
 
+@media (prefers-reduced-motion: no-preference) {
+    html {
+        scroll-behavior: smooth;
+    }
+}
+
 /* Tunnel flow diagram (Architecture section): a single dot travels the full
    width of the diagram (request), then back (response), on a loop. */
 @keyframes tunnel-flow {

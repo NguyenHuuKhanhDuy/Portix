@@ -1,3 +1,4 @@
+using System.Security.Cryptography.X509Certificates;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.EntityFrameworkCore;
@@ -16,6 +17,9 @@ var adminPort = builder.Configuration.GetValue("Portix:AdminPort", 5101);
 var databasePath = builder.Configuration["Portix:Database:Path"] ?? "portix.db";
 var adminToken = builder.Configuration["Portix:AdminToken"];
 var adminEnabled = !string.IsNullOrWhiteSpace(adminToken);
+var apiCertificate = X509Certificate2.CreateFromPemFile(
+    "/etc/portix/certs/fullchain.pem",
+    "/etc/portix/certs/privkey.pem");
 
 builder.WebHost.ConfigureKestrel(options =>
 {
@@ -30,7 +34,11 @@ builder.WebHost.ConfigureKestrel(options =>
     // reach /admin and Swagger UI here too — that broke the control channel outright (Kestrel can't
     // multiplex HTTP/1.1 and h2c on one cleartext port). /admin and Swagger UI now get their own
     // dedicated listener (adminPort) below instead, so this port stays Http2-only.
-    options.Listen(System.Net.IPAddress.Any, controlPort, listenOptions => listenOptions.Protocols = HttpProtocols.Http2);
+    options.Listen(System.Net.IPAddress.Any, controlPort, listenOptions =>
+    {
+        listenOptions.Protocols = HttpProtocols.Http2;
+        listenOptions.UseHttps(apiCertificate);
+    });
 
     // Public listener: ordinary browsers/curl speak HTTP/1.1; also accept HTTP/2 for completeness.
     options.Listen(System.Net.IPAddress.Any, publicPort, listenOptions => listenOptions.Protocols = HttpProtocols.Http1AndHttp2);
