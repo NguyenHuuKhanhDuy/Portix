@@ -30,6 +30,14 @@ jobs:
         working-directory: landing
         run: npm run build
 
+      - name: Clean remote target directory
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: rm -rf /var/www/portix-landing/*
+
       - name: Deploy dist/ over SCP
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -40,4 +48,3 @@ jobs:
           target: "/var/www/portix-landing/"
           strip_components: 2
           overwrite: true
-          rm: true
