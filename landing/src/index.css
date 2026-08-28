@@ -1,7 +1,11 @@
 @import "tailwindcss";
 @import "@fontsource-variable/geist";
 
-/* Dark mode follows the OS preference only (no manual toggle), same as the dashboard app. */
+/* Theme resolution: an explicit choice stored in localStorage ("theme") wins;
+   otherwise the OS `prefers-color-scheme` is used. Both paths just add/remove
+   the `dark` class on <html> — see the inline script in index.html and
+   ThemeToggle.tsx. */
+@custom-variant dark (&:where(.dark, .dark *));
 
 @theme inline {
     --font-sans: 'Geist Variable', sans-serif;
@@ -32,20 +36,18 @@
     --accent-foreground: oklch(0.2 0.02 292);
 }
 
-@media (prefers-color-scheme: dark) {
-    :root {
-        --background: oklch(0.16 0.015 292);
-        --foreground: oklch(0.95 0.01 292);
-        --card: oklch(0.2 0.02 292);
-        --card-foreground: oklch(0.95 0.01 292);
-        --border: oklch(0.3 0.02 292);
-        --muted: oklch(0.24 0.02 292);
-        --muted-foreground: oklch(0.68 0.02 292);
-        --primary: oklch(0.68 0.2 296);
-        --primary-foreground: oklch(0.16 0.015 292);
-        --accent: oklch(0.72 0.14 235);
-        --accent-foreground: oklch(0.16 0.015 292);
-    }
+:root.dark {
+    --background: oklch(0.16 0.015 292);
+    --foreground: oklch(0.95 0.01 292);
+    --card: oklch(0.2 0.02 292);
+    --card-foreground: oklch(0.95 0.01 292);
+    --border: oklch(0.3 0.02 292);
+    --muted: oklch(0.24 0.02 292);
+    --muted-foreground: oklch(0.68 0.02 292);
+    --primary: oklch(0.68 0.2 296);
+    --primary-foreground: oklch(0.16 0.015 292);
+    --accent: oklch(0.72 0.14 235);
+    --accent-foreground: oklch(0.16 0.015 292);
 }
 
 body {

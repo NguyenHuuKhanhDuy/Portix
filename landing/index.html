@@ -39,6 +39,16 @@
       content="Securely expose your local applications through public URLs using your own self-hosted tunnel server."
     />
     <meta name="twitter:image" content="https://portix.io.vn/og-image.png" />
+
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem('theme');
+          var dark = stored ? stored === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+          document.documentElement.classList.toggle('dark', dark);
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
