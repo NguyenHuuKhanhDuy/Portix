@@ -3,13 +3,17 @@ import { Apple, Download as DownloadIcon, Laptop, ShieldAlert } from 'lucide-rea
 import { DOWNLOAD_OSX_ARM64, DOWNLOAD_OSX_X64, DOWNLOAD_WIN_X64, RELEASES_URL } from '../lib/constants'
 import Collapsible from './Collapsible'
 import Reveal from './Reveal'
+import { useLocale } from '../lib/i18n/LocaleContext'
 
 export default function Download() {
+  const { t } = useLocale()
+  const { windowsInstructions: win, macInstructions: mac } = t.download
+
   return (
     <section id="download" className="mx-auto max-w-4xl px-6 py-16 sm:py-20">
       <Reveal className="mx-auto max-w-2xl text-center">
-        <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">Download Portix</h2>
-        <p className="mt-3 text-muted-foreground">Grab the latest build for your platform — extract and run, no install needed.</p>
+        <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">{t.download.heading}</h2>
+        <p className="mt-3 text-muted-foreground">{t.download.subheading}</p>
       </Reveal>
       <div className="mx-auto mt-10 grid max-w-2xl gap-4 sm:grid-cols-2">
         <motion.div
@@ -19,15 +23,15 @@ export default function Download() {
         >
           <Laptop className="size-8 text-primary" />
           <div>
-            <h3 className="font-medium">Windows</h3>
-            <p className="text-sm text-muted-foreground">64-bit</p>
+            <h3 className="font-medium">{t.download.windowsTitle}</h3>
+            <p className="text-sm text-muted-foreground">{t.download.windowsBit}</p>
           </div>
           <a
             href={DOWNLOAD_WIN_X64}
             className="mt-2 inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
           >
             <DownloadIcon className="size-4" />
-            Download
+            {t.download.downloadLabel}
           </a>
         </motion.div>
         <motion.div
@@ -37,22 +41,22 @@ export default function Download() {
         >
           <Apple className="size-8 text-primary" />
           <div>
-            <h3 className="font-medium">macOS</h3>
-            <p className="text-sm text-muted-foreground">Apple Silicon or Intel</p>
+            <h3 className="font-medium">{t.download.macosTitle}</h3>
+            <p className="text-sm text-muted-foreground">{t.download.macosPlatforms}</p>
           </div>
           <div className="mt-2 flex gap-2">
             <a
               href={DOWNLOAD_OSX_ARM64}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-3 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
             >
               <DownloadIcon className="size-4" />
-              Apple Silicon
+              {t.download.appleSiliconLabel}
             </a>
             <a
               href={DOWNLOAD_OSX_X64}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-border px-4 py-2.5 text-sm font-medium transition-colors hover:bg-muted"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border px-4 py-3 text-sm font-medium transition-colors hover:bg-muted"
             >
-              Intel
+              {t.download.intelLabel}
             </a>
           </div>
         </motion.div>
@@ -62,48 +66,47 @@ export default function Download() {
         summary={
           <span className="flex items-center gap-2">
             <Laptop className="size-4 text-primary" />
-            Windows install instructions
+            {win.summary}
           </span>
         }
       >
         <div className="space-y-5 border-t border-border p-6 pt-5 text-sm text-muted-foreground">
           <div>
-            <p className="font-medium text-foreground">1. Extract the binary</p>
+            <p className="font-medium text-foreground">{win.step1Title}</p>
             <p className="mt-1">
-              Unzip the downloaded file to a folder you'll keep around, e.g.{' '}
-              <code className="rounded bg-muted px-1.5 py-0.5 text-xs">C:\Portix</code>.
+              {win.step1TextBefore}{' '}
+              <code className="rounded bg-muted px-1.5 py-0.5 text-xs">C:\Portix</code>
+              {win.step1TextAfter}
             </p>
           </div>
           <div>
-            <p className="font-medium text-foreground">2. (Optional) Add it to PATH</p>
+            <p className="font-medium text-foreground">{win.step2Title}</p>
             <p className="mt-1">
-              So you can run <code className="rounded bg-muted px-1.5 py-0.5 text-xs">portix</code> from any
-              terminal without typing the full path. In PowerShell:
+              {win.step2TextBefore} <code className="rounded bg-muted px-1.5 py-0.5 text-xs">portix</code>{' '}
+              {win.step2TextAfter}
             </p>
             <pre className="mt-2 overflow-x-auto rounded-lg bg-muted p-3 font-mono text-xs text-foreground">
               [Environment]::SetEnvironmentVariable('Path', $env:Path + ';C:\Portix', 'User')
             </pre>
             <p className="mt-2">
-              Or manually: Settings → System → About → Advanced system settings → Environment Variables → edit{' '}
-              <code className="rounded bg-muted px-1.5 py-0.5 text-xs">Path</code> under "User variables" → add the
-              folder. Restart your terminal afterwards.
+              {win.step2ManualBefore}{' '}
+              <code className="rounded bg-muted px-1.5 py-0.5 text-xs">Path</code> {win.step2ManualMid}{' '}
+              {win.step2ManualAfter}
             </p>
           </div>
           <div>
-            <p className="font-medium text-foreground">3. Run Portix</p>
+            <p className="font-medium text-foreground">{win.step3Title}</p>
             <pre className="mt-2 overflow-x-auto rounded-lg bg-muted p-3 font-mono text-xs text-foreground">portix --help</pre>
           </div>
           <div className="rounded-lg border border-accent/30 bg-accent/10 p-4">
             <p className="flex items-center gap-2 font-medium text-foreground">
               <ShieldAlert className="size-4 text-accent" />
-              Windows SmartScreen notice
+              {win.smartScreenTitle}
             </p>
-            <p className="mt-2">
-              If you see <em>"Windows protected your PC"</em>:
-            </p>
+            <p className="mt-2">{win.smartScreenIntro}</p>
             <ol className="mt-2 list-decimal space-y-1 pl-5">
-              <li>Click "More info"</li>
-              <li>Click "Run anyway"</li>
+              <li>{win.smartScreenStep1}</li>
+              <li>{win.smartScreenStep2}</li>
             </ol>
           </div>
         </div>
@@ -113,49 +116,49 @@ export default function Download() {
         summary={
           <span className="flex items-center gap-2">
             <Apple className="size-4 text-primary" />
-            macOS install instructions
+            {mac.summary}
           </span>
         }
       >
         <div className="space-y-5 border-t border-border p-6 pt-5 text-sm text-muted-foreground">
           <div>
-            <p className="font-medium text-foreground">1. Extract the binary</p>
-            <p className="mt-1">Unzip the downloaded file to <code className="rounded bg-muted px-1.5 py-0.5 text-xs">/usr/local/bin</code>:</p>
+            <p className="font-medium text-foreground">{mac.step1Title}</p>
+            <p className="mt-1">
+              {mac.step1TextBefore} <code className="rounded bg-muted px-1.5 py-0.5 text-xs">/usr/local/bin</code>:
+            </p>
             <pre className="mt-2 overflow-x-auto rounded-lg bg-muted p-3 font-mono text-xs text-foreground">
               sudo unzip ~/Downloads/portix-osx-arm64.zip -d /usr/local/bin/
             </pre>
           </div>
           <div>
-            <p className="font-medium text-foreground">2. Set execute permission</p>
-            <p className="mt-1">Make the binary executable:</p>
+            <p className="font-medium text-foreground">{mac.step2Title}</p>
+            <p className="mt-1">{mac.step2Text}</p>
             <pre className="mt-2 overflow-x-auto rounded-lg bg-muted p-3 font-mono text-xs text-foreground">sudo chmod 755 /usr/local/bin/portix</pre>
           </div>
           <div>
-            <p className="font-medium text-foreground">3. Run Portix</p>
+            <p className="font-medium text-foreground">{mac.step3Title}</p>
             <pre className="mt-2 overflow-x-auto rounded-lg bg-muted p-3 font-mono text-xs text-foreground">portix --help</pre>
           </div>
           <div className="rounded-lg border border-accent/30 bg-accent/10 p-4">
             <p className="flex items-center gap-2 font-medium text-foreground">
               <ShieldAlert className="size-4 text-accent" />
-              macOS security notice
+              {mac.securityTitle}
             </p>
-            <p className="mt-2">
-              If you see <em>"portix" was blocked to protect your Mac</em>:
-            </p>
+            <p className="mt-2">{mac.securityIntro}</p>
             <ol className="mt-2 list-decimal space-y-1 pl-5">
-              <li>Go to System Settings → Privacy & Security</li>
-              <li>Scroll down to Security</li>
-              <li>Click "Open Anyway"</li>
-              <li>Confirm to run the app</li>
+              <li>{mac.securityStep1}</li>
+              <li>{mac.securityStep2}</li>
+              <li>{mac.securityStep3}</li>
+              <li>{mac.securityStep4}</li>
             </ol>
           </div>
         </div>
       </Collapsible>
 
       <p className="mt-6 text-center text-sm text-muted-foreground">
-        See all versions on{' '}
+        {t.download.seeAllVersionsPrefix}{' '}
         <a href={RELEASES_URL} className="underline hover:text-foreground">
-          GitHub Releases
+          {t.download.githubReleasesLabel}
         </a>
         .
       </p>

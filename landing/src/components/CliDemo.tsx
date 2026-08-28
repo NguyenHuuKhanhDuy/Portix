@@ -6,6 +6,7 @@ import {
   EXAMPLE_TUNNEL_SUBDOMAIN,
 } from "../lib/constants";
 import Reveal from "./Reveal";
+import { useLocale } from "../lib/i18n/LocaleContext";
 
 const COMMAND = `$ portix http ${EXAMPLE_LOCAL_PORT}`;
 const HOLD_MS = 2600;
@@ -25,6 +26,7 @@ const REQUEST_ROWS = [
 ];
 
 export default function CliDemo() {
+  const { t } = useLocale();
   const [scope, animate] = useAnimate();
   const prefersReducedMotion = useReducedMotion();
 
@@ -97,11 +99,11 @@ export default function CliDemo() {
     <section className="mx-auto max-w-4xl px-6 py-16 sm:py-20">
       <Reveal className="mx-auto max-w-2xl text-center">
         <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-          One command, live traffic
+          {t.cliDemo.heading}
         </h2>
 
         <p className="mt-3 text-muted-foreground">
-          Open a tunnel and watch requests come through as they happen.
+          {t.cliDemo.subheading}
         </p>
       </Reveal>
 
@@ -132,21 +134,21 @@ export default function CliDemo() {
         </div>
 
         <p className="table-label mt-4 text-foreground opacity-0">
-          HTTP Requests
+          {t.cliDemo.httpRequestsLabel}
         </p>
 
-        <div className="mt-2 min-w-[36rem]">
-          <div className="request-row grid grid-cols-[100px_100px_minmax(180px,1fr)_100px] gap-6 border-b border-border pb-2 text-muted-foreground opacity-0">
-            <span>Time</span>
-            <span>Method</span>
-            <span>Path</span>
-            <span>Status</span>
+        <div className="mt-2 min-w-0">
+          <div className="request-row grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-x-6 gap-y-1 border-b border-border pb-2 text-muted-foreground opacity-0 sm:grid-cols-[100px_100px_minmax(180px,1fr)_100px]">
+            <span>{t.cliDemo.tableHeaders.time}</span>
+            <span>{t.cliDemo.tableHeaders.method}</span>
+            <span className="truncate">{t.cliDemo.tableHeaders.path}</span>
+            <span>{t.cliDemo.tableHeaders.status}</span>
           </div>
 
           {REQUEST_ROWS.map((row) => (
             <div
               key={row.time}
-              className="request-row grid grid-cols-[100px_100px_minmax(180px,1fr)_100px] gap-6 py-2 text-muted-foreground opacity-0"
+              className="request-row grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-x-6 gap-y-1 py-2 text-muted-foreground opacity-0 sm:grid-cols-[100px_100px_minmax(180px,1fr)_100px]"
             >
               <span>{row.time}</span>
               <span>{row.method}</span>
